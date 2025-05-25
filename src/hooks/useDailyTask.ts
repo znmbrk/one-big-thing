@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DailyTask } from '../types/Task';
-import { taskStorage } from '../services/taskStorage';
+import { taskStorage, STORAGE_KEYS } from '../services/taskStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const useDailyTask = () => {
   const [currentTask, setCurrentTask] = useState<DailyTask | null>(null);
@@ -29,9 +30,13 @@ export const useDailyTask = () => {
     }
   };
 
-  const saveTask = async (task: DailyTask) => {
+  const saveTask = async (task: DailyTask | null) => {
     try {
-      await taskStorage.saveCurrentTask(task);
+      if (task === null) {
+        await AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_TASK);
+      } else {
+        await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_TASK, JSON.stringify(task));
+      }
       setCurrentTask(task);
     } catch (error) {
       console.error('Error saving task:', error);

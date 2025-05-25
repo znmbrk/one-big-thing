@@ -1,11 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useTaskHistory } from '../hooks/useTaskHistory';
 import { DailyTask } from '../types/Task';
 import { format } from 'date-fns';
 
 export const HistoryScreen = () => {
-  const { tasks, loading, refreshHistory } = useTaskHistory(7); // 7-day limit
+  const { tasks, loading, refreshHistory } = useTaskHistory();
+  const visibleTasks = tasks.slice(0, 7); // Show only 7 days
+  const hasMoreTasks = tasks.length > 7;
 
   const renderTask = ({ item }: { item: DailyTask }) => (
     <View style={styles.taskItem}>
@@ -24,7 +26,7 @@ export const HistoryScreen = () => {
   return (
     <View style={styles.container}>
       <FlatList
-        data={tasks}
+        data={visibleTasks}
         renderItem={renderTask}
         keyExtractor={item => `${item.date}-${item.id}`}
         contentContainerStyle={styles.list}
@@ -33,6 +35,14 @@ export const HistoryScreen = () => {
         ListEmptyComponent={
           <Text style={styles.emptyText}>No tasks completed yet</Text>
         }
+        ListFooterComponent={hasMoreTasks ? (
+          <TouchableOpacity style={styles.upgradeButton}>
+            <Text style={styles.upgradeText}>🔓 Unlock Full History</Text>
+            <Text style={styles.upgradeSubtext}>
+              Subscribe to see your complete task history
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       />
     </View>
   );
@@ -86,5 +96,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#666',
     marginTop: 20,
+  },
+  upgradeButton: {
+    backgroundColor: '#F0F8FF',
+    padding: 20,
+    borderRadius: 12,
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  upgradeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginBottom: 4,
+  },
+  upgradeSubtext: {
+    fontSize: 14,
+    color: '#666',
   },
 }); 

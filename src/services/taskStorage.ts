@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DailyTask } from '../types/Task';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   CURRENT_TASK: 'currentTask',
   TASK_HISTORY: 'taskHistory',
   STREAK: 'streak',

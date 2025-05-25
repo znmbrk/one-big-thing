@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { DailyTask } from '../types/Task';
 
 interface TaskInputProps {
   onSubmit: (text: string) => void;
@@ -11,7 +10,7 @@ export const TaskInput = ({ onSubmit }: TaskInputProps) => {
 
   const handleSubmit = () => {
     if (text.trim()) {
-      onSubmit(text);
+      onSubmit(text.trim());
       setText('');
     }
   };
@@ -24,8 +23,14 @@ export const TaskInput = ({ onSubmit }: TaskInputProps) => {
         onChangeText={setText}
         placeholder="What's your one big thing today?"
         placeholderTextColor="#666"
+        onSubmitEditing={handleSubmit}
+        returnKeyType="done"
       />
-      <TouchableOpacity style={styles.button} onPress={handleSubmit}>
+      <TouchableOpacity 
+        style={[styles.button, !text.trim() && styles.buttonDisabled]} 
+        onPress={handleSubmit}
+        disabled={!text.trim()}
+      >
         <Text style={styles.buttonText}>Set Goal</Text>
       </TouchableOpacity>
     </View>
@@ -50,6 +55,9 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: '#ccc',
   },
   buttonText: {
     color: '#fff',

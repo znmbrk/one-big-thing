@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { taskStorage } from '../services/taskStorage';
 import { DailyTask } from '../types/Task';
+import { isToday, subDays, startOfDay } from 'date-fns';
 
 export const useStreak = () => {
   const [streak, setStreak] = useState(0);
+  const [weeklyCompletion, setWeeklyCompletion] = useState<number[]>(Array(7).fill(0));
 
   useEffect(() => {
     loadStreak();
@@ -12,9 +14,24 @@ export const useStreak = () => {
   const loadStreak = async () => {
     try {
       const allTasks = await taskStorage.getHistory();
-      // Enforce 7-day limit
-      const recentTasks = allTasks.slice(0, 7);
-      const currentStreak = calculateStreak(recentTasks);
+      
+      // Create array for last 7 days
+      const weekStatus = Array(7).fill(0);
+      const today = startOfDay(new Date());
+      
+      // Check each of the last 7 days
+      for (let i = 0; i < 7; i++) {
+        const targetDate = startOfDay(subDays(today, i));
+        const task = allTasks.find(t => 
+          startOfDay(new Date(t.date)).getTime() === targetDate.getTime()
+        );
+        if (task?.completed) {
+          weekStatus[i] = 1;
+        }
+      }
+      
+      setWeeklyCompletion(weekStatus);
+      const currentStreak = calculateStreak(allTasks);
       setStreak(currentStreak);
     } catch (error) {
       console.error('Error loading streak:', error);
@@ -33,5 +50,9 @@ export const useStreak = () => {
     return streak;
   };
 
-  return { streak, refreshStreak: loadStreak };
+  return { 
+    streak, 
+    weeklyCompletion,
+    refreshStreak: loadStreak 
+  };
 }; 

@@ -13,6 +13,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { TaskInput } from '../components/TaskInput';
 import { TaskCard } from '../components/TaskCard';
 import { useStreak } from '../hooks/useStreak';
+import { StreakBar } from '../components/StreakBar';
+import { taskStorage } from '../services/taskStorage';
+import * as Haptic from 'expo-haptics';
 
 type RootStackParamList = {
   Home: undefined;
@@ -23,40 +26,62 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const HomeScreen = () => {
   const { currentTask, setCurrentTask, completeTask } = useDailyTask();
-  const [newTaskText, setNewTaskText] = useState('');
   const checkboxScale = new Animated.Value(1);
   const navigation = useNavigation<NavigationProp>();
-  const { streak } = useStreak();
+  const { streak, weeklyCompletion, refreshStreak } = useStreak();
 
-  const handleSetTask = () => {
-    if (!newTaskText.trim()) return;
-
+  const handleSetTask = async (text: string) => {
     const task = {
       id: Date.now().toString(),
-      text: newTaskText.trim(),
+      text: text,
       completed: false,
       date: new Date().toISOString(),
     };
 
-    setCurrentTask(task);
-    setNewTaskText('');
+    await setCurrentTask(task);
   };
 
   const handleToggleComplete = () => {
     if (!currentTask) return;
 
+    // More dramatic animation sequence
     Animated.sequence([
-      Animated.spring(checkboxScale, {
-        toValue: 1.2,
+      // Quick shrink
+      Animated.timing(checkboxScale, {
+        toValue: 0.8,
+        duration: 100,
         useNativeDriver: true,
       }),
+      // Big bounce
+      Animated.spring(checkboxScale, {
+        toValue: 1.5,
+        tension: 40,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      // Settle back to normal
       Animated.spring(checkboxScale, {
         toValue: 1,
+        tension: 40,
         useNativeDriver: true,
       }),
     ]).start();
 
+    // Add haptic feedback
+    Haptic.notificationAsync(Haptic.NotificationFeedbackType.Success);
+
     completeTask(!currentTask.completed);
+  };
+
+  // DEV ONLY - Reset functionality
+  const handleDevReset = async () => {
+    try {
+      await taskStorage.clearAll();
+      setCurrentTask(null);
+      refreshStreak?.();
+    } catch (error) {
+      console.error('Error resetting:', error);
+    }
   };
 
   return (
@@ -65,6 +90,7 @@ export const HomeScreen = () => {
         <Text style={styles.streakText}>
           🔥 {streak}-day streak
         </Text>
+        <StreakBar completedDays={weeklyCompletion} />
       </View>
 
       {!currentTask ? (
@@ -83,6 +109,16 @@ export const HomeScreen = () => {
       >
         <Text style={styles.historyButtonText}>View History</Text>
       </TouchableOpacity>
+
+      {/* DEV ONLY - Will be removed before production */}
+      {__DEV__ && (
+        <TouchableOpacity
+          style={styles.devResetButton}
+          onPress={handleDevReset}
+        >
+          <Text style={styles.devResetText}>🔄 Reset (Dev Only)</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -155,5 +191,19 @@ const styles = StyleSheet.create({
   historyButtonText: {
     color: '#007AFF',
     fontSize: 18,
+  },
+  // DEV ONLY - Will be removed before production
+  devResetButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: '#FF3B30',
+    padding: 8,
+    borderRadius: 8,
+    opacity: 0.8,
+  },
+  devResetText: {
+    color: '#fff',
+    fontSize: 12,
   },
 }); 
