@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "one-big-thing",
-    "slug": "one-big-thing",
+    "slug": "onebigthing",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -24,6 +24,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "361d862f-9bf1-4ffa-b029-18b10dddbc51"
+      }
+    },
+    "owner": "zainmomo"
   }
 }
