@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 interface TaskInputProps {
   onSubmit: (text: string) => void;
@@ -7,28 +8,35 @@ interface TaskInputProps {
 
 export const TaskInput = ({ onSubmit }: TaskInputProps) => {
   const [text, setText] = useState('');
-
-  const handleSubmit = () => {
-    if (text.trim()) {
-      onSubmit(text.trim());
-      setText('');
-    }
-  };
+  const { theme } = useTheme();
 
   return (
     <View style={styles.container}>
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          {
+            color: theme.text,
+            borderColor: theme.border,
+            backgroundColor: theme.cardBackground,
+          }
+        ]}
+        placeholder="What's your one big thing today?"
+        placeholderTextColor={theme.secondaryText}
         value={text}
         onChangeText={setText}
-        placeholder="What's your one big thing today?"
-        placeholderTextColor="#666"
-        onSubmitEditing={handleSubmit}
-        returnKeyType="done"
       />
-      <TouchableOpacity 
-        style={[styles.button, !text.trim() && styles.buttonDisabled]} 
-        onPress={handleSubmit}
+      <TouchableOpacity
+        style={[
+          styles.button,
+          !text.trim() && styles.buttonDisabled
+        ]}
+        onPress={() => {
+          if (text.trim()) {
+            onSubmit(text);
+            setText('');
+          }
+        }}
         disabled={!text.trim()}
       >
         <Text style={styles.buttonText}>Set Goal</Text>

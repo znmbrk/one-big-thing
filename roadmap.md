@@ -30,8 +30,8 @@
 ## 🎨 PHASE 4: UI & UX Polish (Inspired by HabitKit)
 - [x] Add **7-dot streak bar** (colored/faded dots based on completion)
 - [x] Restyle `<TaskCard />` to look like an iOS widget (rounded, shadow, bold task title, optional emoji)
-- [ ] Display a **motivational quote** under the task (rotates daily from static list)
-- [ ] Animate streak count when increased (bounce or pulse)
+- [x] Display a **motivational quote** under the task (rotates daily from static list)
+- [x] Animate streak count when increased (bounce or pulse)
 - [ ] Add **dark/light mode** styling support based on system preference
 - [ ] Optional: Show "Best streak" or "This week: 5/7 complete" under the streak bar
 

@@ -3,28 +3,41 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native
 import { useTaskHistory } from '../hooks/useTaskHistory';
 import { DailyTask } from '../types/Task';
 import { format } from 'date-fns';
+import { useTheme } from '../context/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export const HistoryScreen = () => {
   const { tasks, loading, refreshHistory } = useTaskHistory();
+  const { theme } = useTheme();
   const visibleTasks = tasks.slice(0, 7); // Show only 7 days
   const hasMoreTasks = tasks.length > 7;
 
   const renderTask = ({ item }: { item: DailyTask }) => (
-    <View style={styles.taskItem}>
+    <View style={[styles.taskItem, { 
+      backgroundColor: theme.cardBackground,
+      borderColor: theme.border 
+    }]}>
       <View style={styles.taskHeader}>
-        <Text style={styles.date}>{format(new Date(item.date), 'MMM d')}</Text>
-        <View style={[styles.status, item.completed ? styles.completed : styles.incomplete]}>
-          <Text style={styles.statusText}>
+        <Text style={[styles.date, { color: theme.secondaryText }]}>
+          {format(new Date(item.date), 'MMM d')}
+        </Text>
+        <View style={[
+          styles.status, 
+          { backgroundColor: item.completed ? theme.successBackground : theme.errorBackground }
+        ]}>
+          <Text style={[styles.statusText, { 
+            color: item.completed ? theme.successText : theme.errorText 
+          }]}>
             {item.completed ? '✓ Done' : 'Incomplete'}
           </Text>
         </View>
       </View>
-      <Text style={styles.taskText}>{item.text}</Text>
+      <Text style={[styles.taskText, { color: theme.text }]}>{item.text}</Text>
     </View>
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <FlatList
         data={visibleTasks}
         renderItem={renderTask}
@@ -33,36 +46,37 @@ export const HistoryScreen = () => {
         onRefresh={refreshHistory}
         refreshing={loading}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No tasks completed yet</Text>
+          <Text style={[styles.emptyText, { color: theme.secondaryText }]}>
+            No tasks completed yet
+          </Text>
         }
         ListFooterComponent={hasMoreTasks ? (
-          <TouchableOpacity style={styles.upgradeButton}>
-            <Text style={styles.upgradeText}>🔓 Unlock Full History</Text>
-            <Text style={styles.upgradeSubtext}>
+          <TouchableOpacity style={[styles.upgradeButton, { backgroundColor: theme.cardBackground }]}>
+            <Text style={[styles.upgradeText, { color: theme.accent }]}>
+              🔓 Unlock Full History
+            </Text>
+            <Text style={[styles.upgradeSubtext, { color: theme.secondaryText }]}>
               Subscribe to see your complete task history
             </Text>
           </TouchableOpacity>
         ) : null}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   list: {
     padding: 16,
   },
   taskItem: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#eee',
   },
   taskHeader: {
     flexDirection: 'row',

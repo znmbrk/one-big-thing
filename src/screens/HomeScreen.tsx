@@ -12,10 +12,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { TaskInput } from '../components/TaskInput';
 import { TaskCard } from '../components/TaskCard';
-import { useStreak } from '../hooks/useStreak';
+import { useStreak, getWeekdayIndex } from '../hooks/useStreak';
 import { StreakBar } from '../components/StreakBar';
 import { taskStorage } from '../services/taskStorage';
 import * as Haptic from 'expo-haptics';
+import { useTheme } from '../context/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type RootStackParamList = {
   Home: undefined;
@@ -27,8 +29,10 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export const HomeScreen = () => {
   const { currentTask, setCurrentTask, completeTask } = useDailyTask();
   const checkboxScale = new Animated.Value(1);
+  const streakAnimation = new Animated.Value(1);
   const navigation = useNavigation<NavigationProp>();
-  const { streak, weeklyCompletion, refreshStreak } = useStreak();
+  const { streak, weeklyCompletion, refreshStreak, updateWeeklyCompletion } = useStreak();
+  const { theme } = useTheme();
 
   const handleSetTask = async (text: string) => {
     const task = {
@@ -41,8 +45,10 @@ export const HomeScreen = () => {
     await setCurrentTask(task);
   };
 
-  const handleToggleComplete = () => {
+  const handleToggleComplete = async () => {
     if (!currentTask) return;
+
+    console.log('1. Starting task completion');
 
     // More dramatic animation sequence
     Animated.sequence([
@@ -70,7 +76,16 @@ export const HomeScreen = () => {
     // Add haptic feedback
     Haptic.notificationAsync(Haptic.NotificationFeedbackType.Success);
 
-    completeTask(!currentTask.completed);
+    await completeTask(!currentTask.completed);
+    console.log('2. Task completed');
+    await refreshStreak();
+    console.log('3. Streak refreshed');
+    
+    // Force immediate update of the streak bar
+    const todayIndex = getWeekdayIndex(new Date());
+    const newCompletion = [...weeklyCompletion];
+    newCompletion[todayIndex] = 1;
+    updateWeeklyCompletion(newCompletion);
   };
 
   // DEV ONLY - Reset functionality
@@ -84,59 +99,79 @@ export const HomeScreen = () => {
     }
   };
 
+  console.log('Rendering StreakBar with completion:', weeklyCompletion);
+
   return (
-    <View style={styles.container}>
-      <View style={styles.streakContainer}>
-        <Text style={styles.streakText}>
-          🔥 {streak}-day streak
-        </Text>
-        <StreakBar completedDays={weeklyCompletion} />
-      </View>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      <View style={styles.container}>
+        <View style={styles.streakContainer}>
+          <Animated.Text 
+            style={[
+              styles.streakText,
+              { 
+                transform: [{ scale: streakAnimation }],      
+                color: theme.text
+              }
+            ]}
+          >
+            🔥 {streak}-day streak
+          </Animated.Text>
+          <StreakBar 
+            completedDays={weeklyCompletion} 
+            onUpdate={updateWeeklyCompletion}
+          />
+        </View>
 
-      {!currentTask ? (
-        <TaskInput onSubmit={handleSetTask} />
-      ) : (
-        <TaskCard
-          task={currentTask}
-          onToggleComplete={handleToggleComplete}
-          checkboxScale={checkboxScale}
-        />
-      )}
+        {!currentTask ? (
+          <TaskInput onSubmit={handleSetTask} />
+        ) : (
+          <TaskCard
+            task={currentTask}
+            onToggleComplete={handleToggleComplete}
+            checkboxScale={checkboxScale}
+          />
+        )}
 
-      <TouchableOpacity
-        style={styles.historyButton}
-        onPress={() => navigation.navigate('History')}
-      >
-        <Text style={styles.historyButtonText}>View History</Text>
-      </TouchableOpacity>
-
-      {/* DEV ONLY - Will be removed before production */}
-      {__DEV__ && (
         <TouchableOpacity
-          style={styles.devResetButton}
-          onPress={handleDevReset}
+          style={styles.historyButton}
+          onPress={() => navigation.navigate('History')}
         >
-          <Text style={styles.devResetText}>🔄 Reset (Dev Only)</Text>
+          <Text style={styles.historyButtonText}>View History</Text>
         </TouchableOpacity>
-      )}
-    </View>
+
+        {/* DEV ONLY - Will be removed before production */}
+        {__DEV__ && (
+          <TouchableOpacity
+            style={styles.devResetButton}
+            onPress={handleDevReset}
+          >
+            <Text style={styles.devResetText}>🔄 Reset (Dev Only)</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingTop: 60,
+    padding: 20,
+    paddingTop: 40,
   },
   streakContainer: {
     alignItems: 'center',
     marginBottom: 20,
+    marginTop: 20,
   },
   streakText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
   },
   inputContainer: {
     flex: 1,
