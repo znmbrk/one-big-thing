@@ -1,66 +1,78 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, SafeAreaView, Modal, TouchableOpacity, Text, Pressable } from 'react-native';
 import { useTaskHistory } from '../hooks/useTaskHistory';
+import { WeeklySnapshot } from '../components/WeeklySnapshot';
+import { useTheme } from '../context/ThemeContext';
 import { DailyTask } from '../types/Task';
 import { format } from 'date-fns';
-import { useTheme } from '../context/ThemeContext';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 export const HistoryScreen = () => {
   const { tasks, loading, refreshHistory } = useTaskHistory();
   const { theme } = useTheme();
-  const visibleTasks = tasks.slice(0, 7); // Show only 7 days
-  const hasMoreTasks = tasks.length > 7;
+  const [selectedTask, setSelectedTask] = useState<{task: DailyTask | null, day: string} | null>(null);
+  const visibleTasks = tasks.slice(0, 7);
 
-  const renderTask = ({ item }: { item: DailyTask }) => (
-    <View style={[styles.taskItem, { 
-      backgroundColor: theme.cardBackground,
-      borderColor: theme.border 
-    }]}>
-      <View style={styles.taskHeader}>
-        <Text style={[styles.date, { color: theme.secondaryText }]}>
-          {format(new Date(item.date), 'MMM d')}
-        </Text>
-        <View style={[
-          styles.status, 
-          { backgroundColor: item.completed ? theme.successBackground : theme.errorBackground }
-        ]}>
-          <Text style={[styles.statusText, { 
-            color: item.completed ? theme.successText : theme.errorText 
-          }]}>
-            {item.completed ? '✓ Done' : 'Incomplete'}
-          </Text>
-        </View>
-      </View>
-      <Text style={[styles.taskText, { color: theme.text }]}>{item.text}</Text>
-    </View>
-  );
+  const handleDayPress = (task: DailyTask | null, day: string) => {
+    setSelectedTask({ task, day });
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <FlatList
-        data={visibleTasks}
-        renderItem={renderTask}
-        keyExtractor={item => `${item.date}-${item.id}`}
-        contentContainerStyle={styles.list}
-        onRefresh={refreshHistory}
-        refreshing={loading}
-        ListEmptyComponent={
-          <Text style={[styles.emptyText, { color: theme.secondaryText }]}>
-            No tasks completed yet
-          </Text>
-        }
-        ListFooterComponent={hasMoreTasks ? (
-          <TouchableOpacity style={[styles.upgradeButton, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.upgradeText, { color: theme.accent }]}>
-              🔓 Unlock Full History
-            </Text>
-            <Text style={[styles.upgradeSubtext, { color: theme.secondaryText }]}>
-              Subscribe to see your complete task history
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-      />
+      <WeeklySnapshot tasks={visibleTasks} onDayPress={handleDayPress} />
+      
+      <Modal
+        visible={selectedTask !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedTask(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable 
+            style={styles.modalDismissArea}
+            onPress={() => setSelectedTask(null)}
+          />
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+            <View style={styles.modalHandle} />
+            
+            {selectedTask?.task ? (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={styles.dateContainer}>
+                    <Text style={[styles.dayName, { color: theme.secondaryText }]}>
+                      {selectedTask.day}
+                    </Text>
+                    <Text style={[styles.fullDate, { color: theme.text }]}>
+                      {format(new Date(selectedTask.task.date), 'MMMM d, yyyy')}
+                    </Text>
+                  </View>
+                  {selectedTask.task.completed && (
+                    <View style={[styles.statusBadge, { backgroundColor: theme.accent + '20' }]}>
+                      <Text style={[styles.statusText, { color: theme.accent }]}>
+                        ✓ Completed
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.taskContainer}>
+                  <Text style={[styles.taskLabel, { color: theme.secondaryText }]}>
+                    Task
+                  </Text>
+                  <Text style={[styles.taskText, { color: theme.text }]}>
+                    {selectedTask.task.text}
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: theme.secondaryText }]}>
+                  No task for {selectedTask?.day}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -69,63 +81,74 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  list: {
-    padding: 16,
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
-  taskItem: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
+  modalDismissArea: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  taskHeader: {
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingTop: 12,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#999',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    marginBottom: 24,
   },
-  date: {
-    fontSize: 14,
-    color: '#666',
+  dateContainer: {
+    flex: 1,
   },
-  status: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  completed: {
-    backgroundColor: '#E8F5E9',
-  },
-  incomplete: {
-    backgroundColor: '#FFEBEE',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  taskText: {
-    fontSize: 16,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#666',
-    marginTop: 20,
-  },
-  upgradeButton: {
-    backgroundColor: '#F0F8FF',
-    padding: 20,
-    borderRadius: 12,
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  upgradeText: {
+  dayName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#007AFF',
     marginBottom: 4,
   },
-  upgradeSubtext: {
+  fullDate: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusText: {
     fontSize: 14,
-    color: '#666',
+    fontWeight: '600',
+  },
+  taskContainer: {
+    marginBottom: 24,
+  },
+  taskLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  taskText: {
+    fontSize: 20,
+    fontWeight: '500',
+    lineHeight: 28,
+  },
+  emptyContainer: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
   },
 }); 
