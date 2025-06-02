@@ -10,19 +10,18 @@
 
 ## Tasks
 
-- [ ] 1.0 Setup Weekly Snapshot Component
-  - [ ] 1.1 Create WeeklySnapshot component with basic grid layout
-  - [ ] 1.2 Implement completion indicators for each day
-  - [ ] 1.3 Add current streak display
-  - [ ] 1.4 Style grid with theme support
-  - [ ] 1.5 Add basic animations for status changes
+- [x] 1.0 Setup Weekly Snapshot Component
+  - [x] 1.1 Create WeeklySnapshot component with basic grid layout
+  - [x] 1.2 Implement completion indicators for each day
+  - [x] 1.3 Style grid with theme support
+  - [x] 1.4 Add basic animations for status changes
 
-- [ ] 2.0 Implement Task Timeline
-  - [ ] 2.1 Create TaskTimeline component structure
-  - [ ] 2.2 Design card layout for individual tasks
-  - [ ] 2.3 Implement date grouping logic
-  - [ ] 2.4 Add smooth scrolling behavior
-  - [ ] 2.5 Style timeline with theme support
+- [x] 2.0 Implement Task Timeline
+  - [x] 2.1 Create TaskTimeline component structure
+  - [x] 2.2 Design card layout for individual tasks
+  - [x] 2.3 Implement date grouping logic
+  - [x] 2.4 Add smooth scrolling behavior
+  - [x] 2.5 Style timeline with theme support
 
 - [ ] 3.0 Create Insights Panel
   - [ ] 3.1 Create InsightsPanel component

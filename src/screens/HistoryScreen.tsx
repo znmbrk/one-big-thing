@@ -1,25 +1,80 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, Modal, TouchableOpacity, Text, Pressable } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, StyleSheet, SafeAreaView, Modal, TouchableOpacity, Text, Pressable, Animated, Dimensions } from 'react-native';
 import { useTaskHistory } from '../hooks/useTaskHistory';
 import { WeeklySnapshot } from '../components/WeeklySnapshot';
+import { TaskTimeline } from '../components/TaskTimeline';
 import { useTheme } from '../context/ThemeContext';
 import { DailyTask } from '../types/Task';
 import { format } from 'date-fns';
 
+type ViewMode = 'grid' | 'timeline';
+
 export const HistoryScreen = () => {
-  const { tasks, loading, refreshHistory } = useTaskHistory();
+  const screenWidth = Dimensions.get('window').width;
+  const { tasks} = useTaskHistory();
   const { theme } = useTheme();
   const [selectedTask, setSelectedTask] = useState<{task: DailyTask | null, day: string} | null>(null);
-  const visibleTasks = tasks.slice(0, 7);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const handleDayPress = (task: DailyTask | null, day: string) => {
     setSelectedTask({ task, day });
   };
 
+  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
+
+  const switchView = (mode: ViewMode) => {
+    Animated.spring(tabIndicatorAnim, {
+      toValue: mode === 'grid' ? 0 : 1,
+      useNativeDriver: true,
+      friction: 20,
+      tension: 120,
+    }).start();
+    setViewMode(mode);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <WeeklySnapshot tasks={visibleTasks} onDayPress={handleDayPress} />
-      
+      {/* Tab Navigation */}
+      <View style={[styles.tabContainer, { backgroundColor: theme.cardBackground }]}>
+        <Animated.View style={[
+          styles.tabIndicator,
+          {
+            backgroundColor: theme.accent + '20',
+            transform: [{
+              translateX: tabIndicatorAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [4, screenWidth / 2 - 4]
+              })
+            }]
+          }
+        ]} />
+        <TouchableOpacity 
+          style={styles.tab}
+          onPress={() => switchView('grid')}
+        >
+          <Text style={[styles.tabText, { color: viewMode === 'grid' ? theme.accent : theme.secondaryText }]}>
+            Week View
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.tab}
+          onPress={() => switchView('timeline')}
+        >
+          <Text style={[styles.tabText, { color: viewMode === 'timeline' ? theme.accent : theme.secondaryText }]}>
+            Timeline
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
+      <View style={styles.content}>
+        {viewMode === 'grid' ? (
+          <WeeklySnapshot tasks={tasks.slice(0, 7)} onDayPress={handleDayPress} />
+        ) : (
+          <TaskTimeline tasks={tasks} />
+        )}
+      </View>
+
       <Modal
         visible={selectedTask !== null}
         transparent
@@ -79,6 +134,34 @@ export const HistoryScreen = () => {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    margin: 16,
+    borderRadius: 20,
+    padding: 4,
+    position: 'relative',
+    height: 48,
+  },
+  tabIndicator: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    width: '48%',
+    borderRadius: 16,
+  },
+  tab: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  content: {
     flex: 1,
   },
   modalOverlay: {

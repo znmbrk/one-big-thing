@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Dimensions, Animated } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { DailyTask } from '../types/Task';
 import { format } from 'date-fns';
@@ -15,6 +15,32 @@ export const WeeklySnapshot = ({ tasks, onDayPress }: WeeklySnapshotProps) => {
   const today = new Date();
   const screenWidth = Dimensions.get('window').width;
   const cellSize = (screenWidth - 48) / 3; // 48 = total horizontal padding and gaps
+
+  // Animation values for each cell
+  const fadeAnims = useRef(days.map(() => new Animated.Value(0))).current;
+  const scaleAnims = useRef(days.map(() => new Animated.Value(0.9))).current;
+
+  useEffect(() => {
+    // Stagger the fade-in animations
+    days.forEach((_, index) => {
+      Animated.sequence([
+        Animated.delay(index * 100), // Stagger each cell
+        Animated.parallel([
+          Animated.timing(fadeAnims[index], {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.spring(scaleAnims[index], {
+            toValue: 1,
+            tension: 50,
+            friction: 7,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+    });
+  }, []);
 
   const getDayTask = (dayName: string) => {
     return tasks.find(task => {
@@ -34,40 +60,50 @@ export const WeeklySnapshot = ({ tasks, onDayPress }: WeeklySnapshotProps) => {
           const taskDate = dayTask ? new Date(dayTask.date) : null;
           
           return (
-            <Pressable 
+            <Animated.View
               key={day}
-              onPress={() => onDayPress?.(dayTask || null, day)}
-              style={({ pressed }) => [
-                styles.dayCell,
+              style={[
+                styles.animatedContainer,
                 {
-                  backgroundColor: isCompleted 
-                    ? theme.accent 
-                    : theme.cardBackground,
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
-                  width: cellSize,
-                  height: cellSize,
-                }
+                  opacity: fadeAnims[index],
+                  transform: [{ scale: scaleAnims[index] }],
+                },
               ]}
             >
-              <View style={styles.dayHeader}>
-                <Text style={[styles.dayText, { color: isCompleted ? 'white' : theme.secondaryText }]}>
-                  {day}
-                </Text>
-                {taskDate && (
-                  <Text style={[styles.dateText, { color: isCompleted ? 'white' : theme.secondaryText }]}>
-                    {format(taskDate, 'MMM d')}
+              <Pressable 
+                onPress={() => onDayPress?.(dayTask || null, day)}
+                style={({ pressed }) => [
+                  styles.dayCell,
+                  {
+                    backgroundColor: isCompleted 
+                      ? theme.accent 
+                      : theme.cardBackground,
+                    transform: [{ scale: pressed ? 0.95 : 1 }],
+                    width: cellSize,
+                    height: cellSize,
+                  }
+                ]}
+              >
+                <View style={styles.dayHeader}>
+                  <Text style={[styles.dayText, { color: isCompleted ? 'white' : theme.secondaryText }]}>
+                    {day}
+                  </Text>
+                  {taskDate && (
+                    <Text style={[styles.dateText, { color: isCompleted ? 'white' : theme.secondaryText }]}>
+                      {format(taskDate, 'MMM d')}
+                    </Text>
+                  )}
+                </View>
+                {dayTask && (
+                  <Text 
+                    style={[styles.taskText, { color: isCompleted ? 'white' : theme.text }]}
+                    numberOfLines={2}
+                  >
+                    {dayTask.text}
                   </Text>
                 )}
-              </View>
-              {dayTask && (
-                <Text 
-                  style={[styles.taskText, { color: isCompleted ? 'white' : theme.text }]}
-                  numberOfLines={2}
-                >
-                  {dayTask.text}
-                </Text>
-              )}
-            </Pressable>
+              </Pressable>
+            </Animated.View>
           );
         })}
       </View>
@@ -114,5 +150,10 @@ const styles = StyleSheet.create({
   taskText: {
     fontSize: 14,
     marginTop: 8,
+  },
+  animatedContainer: {
+    // This ensures the animated view doesn't affect layout
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 }); 
