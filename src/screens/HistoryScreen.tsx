@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, StyleSheet, SafeAreaView, Modal, TouchableOpacity, Text, Pressable, Animated, Dimensions } from 'react-native';
+import { View, StyleSheet, SafeAreaView, Modal, TouchableOpacity, Text, Pressable, Animated, Dimensions, RefreshControl, useWindowDimensions, ScrollView } from 'react-native';
 import { useTaskHistory } from '../hooks/useTaskHistory';
 import { WeeklySnapshot } from '../components/WeeklySnapshot';
 import { TaskTimeline } from '../components/TaskTimeline';
@@ -10,11 +10,13 @@ import { format } from 'date-fns';
 type ViewMode = 'grid' | 'timeline';
 
 export const HistoryScreen = () => {
-  const screenWidth = Dimensions.get('window').width;
-  const { tasks} = useTaskHistory();
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+  const { tasks, loading, refreshHistory } = useTaskHistory();
   const { theme } = useTheme();
   const [selectedTask, setSelectedTask] = useState<{task: DailyTask | null, day: string} | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleDayPress = (task: DailyTask | null, day: string) => {
     setSelectedTask({ task, day });
@@ -32,47 +34,82 @@ export const HistoryScreen = () => {
     setViewMode(mode);
   };
 
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await refreshHistory();
+    setRefreshing(false);
+  }, [refreshHistory]);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Tab Navigation */}
-      <View style={[styles.tabContainer, { backgroundColor: theme.cardBackground }]}>
-        <Animated.View style={[
-          styles.tabIndicator,
-          {
-            backgroundColor: theme.accent + '20',
-            transform: [{
-              translateX: tabIndicatorAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [4, screenWidth / 2 - 4]
-              })
-            }]
-          }
-        ]} />
-        <TouchableOpacity 
-          style={styles.tab}
-          onPress={() => switchView('grid')}
-        >
-          <Text style={[styles.tabText, { color: viewMode === 'grid' ? theme.accent : theme.secondaryText }]}>
-            Week View
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.tab}
-          onPress={() => switchView('timeline')}
-        >
-          <Text style={[styles.tabText, { color: viewMode === 'timeline' ? theme.accent : theme.secondaryText }]}>
-            Timeline
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <View style={[
+        styles.content,
+        isLandscape && styles.landscapeContent
+      ]}>
+        <View style={styles.mainContent}>
+          <View style={[styles.tabContainer, { backgroundColor: theme.cardBackground }]}>
+            <Animated.View style={[
+              styles.tabIndicator,
+              {
+                backgroundColor: theme.accent + '20',
+                transform: [{
+                  translateX: tabIndicatorAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [4, width / 2 - 4]
+                  })
+                }]
+              }
+            ]} />
+            <TouchableOpacity 
+              style={styles.tab}
+              onPress={() => switchView('grid')}
+            >
+              <Text style={[styles.tabText, { color: viewMode === 'grid' ? theme.accent : theme.secondaryText }]}>
+                Week View
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.tab}
+              onPress={() => switchView('timeline')}
+            >
+              <Text style={[styles.tabText, { color: viewMode === 'timeline' ? theme.accent : theme.secondaryText }]}>
+                Timeline
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-      {/* Content */}
-      <View style={styles.content}>
-        {viewMode === 'grid' ? (
-          <WeeklySnapshot tasks={tasks.slice(0, 7)} onDayPress={handleDayPress} />
-        ) : (
-          <TaskTimeline tasks={tasks} />
-        )}
+          <View style={[
+            styles.viewContainer,
+            isLandscape && styles.landscapeViewContainer
+          ]}>
+            {viewMode === 'grid' ? (
+              <WeeklySnapshot 
+                tasks={tasks.slice(0, 7)} 
+                onDayPress={handleDayPress}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={theme.accent}
+                    colors={[theme.accent]}
+                  />
+                }
+              />
+            ) : (
+              <TaskTimeline 
+                tasks={tasks}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={theme.accent}
+                    colors={[theme.accent]}
+                  />
+                }
+              />
+            )}
+          </View>
+        </View>
       </View>
 
       <Modal
@@ -136,13 +173,34 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+  },
+  landscapeContent: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+  },
+  mainContent: {
+    flex: 1,
+    gap: 16,
+  },
   tabContainer: {
     flexDirection: 'row',
-    margin: 16,
+    marginHorizontal: 16,
     borderRadius: 20,
     padding: 4,
     position: 'relative',
     height: 48,
+  },
+  viewContainer: {
+    flex: 1,
+    marginTop: 8,
+  },
+  landscapeViewContainer: {
+    paddingHorizontal: 16,
   },
   tabIndicator: {
     position: 'absolute',
@@ -160,9 +218,6 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  content: {
-    flex: 1,
   },
   modalOverlay: {
     flex: 1,

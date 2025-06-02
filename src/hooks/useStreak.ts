@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { taskStorage } from '../services/taskStorage';
-import { DailyTask } from '../types/Task';
-import { isToday, startOfDay, format, startOfWeek, isSameWeek } from 'date-fns';
+import {format, startOfWeek, isSameWeek } from 'date-fns';
 
 export const getWeekdayIndex = (date: Date) => {
   const day = format(date, 'E');

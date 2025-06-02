@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 interface WeeklySnapshotProps {
   tasks: DailyTask[];
   onDayPress?: (task: DailyTask | null, day: string) => void;
+  refreshControl?: React.ReactElement;
 }
 
 export const WeeklySnapshot = ({ tasks, onDayPress }: WeeklySnapshotProps) => {

@@ -23,25 +23,18 @@
   - [x] 2.4 Add smooth scrolling behavior
   - [x] 2.5 Style timeline with theme support
 
-- [ ] 3.0 Create Insights Panel
-  - [ ] 3.1 Create InsightsPanel component
-  - [ ] 3.2 Calculate and display weekly completion rate
-  - [ ] 3.3 Show current and best streak
-  - [ ] 3.4 Add basic completion patterns
-  - [ ] 3.5 Style panel with theme support
+- [x] 3.0 Redesign History Screen Layout
+  - [x] 3.1 Update screen structure to include new components
+  - [x] 3.2 Implement layout responsiveness
+  - [x] 3.3 Add pull-to-refresh functionality
+  - [x] 3.4 Handle loading and error states
+  - [x] 3.5 Integrate with navigation
 
-- [ ] 4.0 Redesign History Screen Layout
-  - [ ] 4.1 Update screen structure to include new components
-  - [ ] 4.2 Implement layout responsiveness
-  - [ ] 4.3 Add pull-to-refresh functionality
-  - [ ] 4.4 Handle loading and error states
-  - [ ] 4.5 Integrate with navigation
-
-- [ ] 5.0 Add Animations and Polish
-  - [ ] 5.1 Add smooth transitions between states
-  - [ ] 5.2 Implement loading animations
-  - [ ] 5.3 Add haptic feedback
-  - [ ] 5.4 Polish empty states
-  - [ ] 5.5 Test and refine overall UX
+- [ ] 4.0 Add Animations and Polish
+  - [ ] 4.1 Add smooth transitions between states
+  - [ ] 4.2 Implement loading animations
+  - [ ] 4.3 Add haptic feedback
+  - [ ] 4.4 Polish empty states
+  - [ ] 4.5 Test and refine overall UX
 
 Would you like to start with implementing the first sub-task (1.1 Create WeeklySnapshot component with basic grid layout)?

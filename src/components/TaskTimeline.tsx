@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControlProps } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { DailyTask } from '../types/Task';
 import { format, isSameDay } from 'date-fns';
 
 interface TaskTimelineProps {
   tasks: DailyTask[];
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 interface GroupedTasks {
@@ -13,7 +14,7 @@ interface GroupedTasks {
   tasks: DailyTask[];
 }
 
-export const TaskTimeline = ({ tasks }: TaskTimelineProps) => {
+export const TaskTimeline = ({ tasks, refreshControl }: TaskTimelineProps) => {
   const { theme } = useTheme();
 
   // Group tasks by date
@@ -73,6 +74,7 @@ export const TaskTimeline = ({ tasks }: TaskTimelineProps) => {
       bounces={true}
       snapToAlignment="start"
       scrollEventThrottle={16}
+      refreshControl={refreshControl}
     />
   );
 };
