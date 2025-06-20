@@ -5,6 +5,11 @@ import {
   SubscriptionState, 
   SubscriptionStatus,
 } from '../types/subscription';
+import { Platform } from 'react-native';
+
+const API_KEYS = {
+  apple: 'appl_XnVCDkYrMoNSCnUPthacgEgRrpv',
+};
 
 const defaultSubscriptionState: SubscriptionState = {
   status: SubscriptionStatus.FREE,
@@ -26,6 +31,17 @@ export const useSubscription = () => useContext(SubscriptionContext);
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [subscription, setSubscription] = useState<SubscriptionState>(defaultSubscriptionState);
   const [isLoading, setIsLoading] = useState(true);
+  const [isConfiguring, setIsConfiguring] = useState(true);
+
+  useEffect(() => {
+    const configure = async () => {
+      if (Platform.OS === 'ios') {
+        await Purchases.configure({ apiKey: API_KEYS.apple });
+      }
+      setIsConfiguring(false);
+    }
+    configure();
+  }, [])
 
   const checkSubscriptionStatus = useCallback(async (customerInfo: CustomerInfo) => {
     const { entitlements } = customerInfo;
@@ -41,6 +57,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   useEffect(() => {
+    if(isConfiguring) return;
+
     const getInitialStatus = async () => {
       try {
         const customerInfo = await Purchases.getCustomerInfo();
@@ -63,7 +81,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => {
       Purchases.removeCustomerInfoUpdateListener(checkSubscriptionStatus);
     };
-  }, [checkSubscriptionStatus]);
+  }, [checkSubscriptionStatus, isConfiguring]);
 
   const upgradeToPremium = async () => {
     setIsLoading(true);
@@ -109,7 +127,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   return (
     <SubscriptionContext.Provider value={contextValue}>
-      {children}
+      {!isConfiguring && !isLoading ? children : null}
     </SubscriptionContext.Provider>
   );
 }; 
