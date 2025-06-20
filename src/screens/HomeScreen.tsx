@@ -17,6 +17,7 @@ import { StreakBar } from '../components/StreakBar';
 import { taskStorage } from '../services/taskStorage';
 import * as Haptic from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type RootStackParamList = {
@@ -33,6 +34,7 @@ export const HomeScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const { streak, weeklyCompletion, refreshStreak, updateWeeklyCompletion } = useStreak();
   const { theme } = useTheme();
+  const { resetToFree } = useSubscription();
 
   const handleSetTask = async (text: string) => {
     const task = {
@@ -92,6 +94,7 @@ export const HomeScreen = () => {
   const handleDevReset = async () => {
     try {
       await taskStorage.clearAll();
+      await resetToFree();
       setCurrentTask(null);
       refreshStreak?.();
     } catch (error) {

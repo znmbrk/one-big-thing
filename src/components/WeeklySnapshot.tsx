@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Dimensions, Animated } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import { DailyTask } from '../types/Task';
 import { format } from 'date-fns';
 
@@ -12,6 +13,7 @@ interface WeeklySnapshotProps {
 
 export const WeeklySnapshot = ({ tasks, onDayPress }: WeeklySnapshotProps) => {
   const { theme } = useTheme();
+  const { isPremium, isFree } = useSubscription();
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const today = new Date();
   const screenWidth = Dimensions.get('window').width;
@@ -43,6 +45,15 @@ export const WeeklySnapshot = ({ tasks, onDayPress }: WeeklySnapshotProps) => {
     });
   }, []);
 
+  // Start sparkle animations for premium completed tasks
+  useEffect(() => {
+    if (isPremium) {
+      days.forEach((_, index) => {
+        const dayTask = getDayTask(days[index]);
+      });
+    }
+  }, [isPremium, tasks]);
+
   const getDayTask = (dayName: string) => {
     return tasks.find(task => {
       const taskDate = new Date(task.date);
@@ -50,6 +61,24 @@ export const WeeklySnapshot = ({ tasks, onDayPress }: WeeklySnapshotProps) => {
       return taskDayName === dayName;
     });
   };
+
+  // Show upgrade prompt for free users if they have limited data
+  const showUpgradePrompt = isFree && tasks.length === 0;
+
+  if (showUpgradePrompt) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.upgradePromptContainer}>
+          <Text style={[styles.upgradePromptTitle, { color: theme.text }]}>
+            Unlock Your Full Week
+          </Text>
+          <Text style={[styles.upgradePromptText, { color: theme.secondaryText }]}>
+            Complete your first "one big thing" to see your weekly progress
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -77,14 +106,24 @@ export const WeeklySnapshot = ({ tasks, onDayPress }: WeeklySnapshotProps) => {
                   styles.dayCell,
                   {
                     backgroundColor: isCompleted 
-                      ? theme.accent 
+                      ? (isPremium ? theme.accent : theme.accent)
                       : theme.cardBackground,
                     transform: [{ scale: pressed ? 0.95 : 1 }],
                     width: cellSize,
                     height: cellSize,
+                    // Premium-specific styling for completed tasks
+                    ...(isPremium && isCompleted && {
+                      shadowColor: theme.accent,
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 8,
+                      elevation: 8,
+                    }),
                   }
                 ]}
               >
+              
+
                 <View style={styles.dayHeader}>
                   <Text style={[styles.dayText, { color: isCompleted ? 'white' : theme.secondaryText }]}>
                     {day}
@@ -108,6 +147,15 @@ export const WeeklySnapshot = ({ tasks, onDayPress }: WeeklySnapshotProps) => {
           );
         })}
       </View>
+      
+      {/* Premium indicator for premium users */}
+      {isPremium && (
+        <View style={styles.premiumIndicator}>
+          <Text style={[styles.premiumText, { color: theme.accent }]}>
+            ✨ Premium: Unlimited History Access
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -134,6 +182,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     marginBottom: 12,
+    position: 'relative',
+    overflow: 'hidden',
   },
   dayHeader: {
     flexDirection: 'row',
@@ -156,5 +206,55 @@ const styles = StyleSheet.create({
     // This ensures the animated view doesn't affect layout
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sparkleOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  sparkleIcon: {
+    fontSize: 20,
+  },
+  premiumCompletionIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  premiumCompletionText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  upgradePromptContainer: {
+    alignItems: 'center',
+    padding: 32,
+    textAlign: 'center',
+  },
+  upgradePromptTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  upgradePromptText: {
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  premiumIndicator: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  premiumText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 
