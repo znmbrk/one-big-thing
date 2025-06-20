@@ -16,7 +16,6 @@ export interface SubscriptionContextType {
   isFree: boolean;
   isLoading: boolean;
   upgradeToPremium: () => Promise<void>;
-  resetToFree: () => Promise<void>;
   refreshSubscriptionStatus: () => Promise<void>;
 }
 

@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Purchases, { PurchasesStoreProduct, CustomerInfo, PurchasesOffering } from 'react-native-purchases';
 import { 
   SubscriptionContextType, 
   SubscriptionState, 
   SubscriptionStatus,
-  SUBSCRIPTION_STORAGE_KEY 
 } from '../types/subscription';
 
 const defaultSubscriptionState: SubscriptionState = {
@@ -19,7 +18,6 @@ const SubscriptionContext = createContext<SubscriptionContextType>({
   isFree: true,
   isLoading: true,
   upgradeToPremium: async () => {},
-  resetToFree: async () => {},
   refreshSubscriptionStatus: async () => {},
 });
 
@@ -28,159 +26,85 @@ export const useSubscription = () => useContext(SubscriptionContext);
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [subscription, setSubscription] = useState<SubscriptionState>(defaultSubscriptionState);
   const [isLoading, setIsLoading] = useState(true);
-  const [listeners, setListeners] = useState<Set<(status: SubscriptionStatus) => void>>(new Set());
 
-  // Add subscription status change listener
-  const addStatusChangeListener = useCallback((listener: (status: SubscriptionStatus) => void) => {
-    setListeners(prev => new Set(prev).add(listener));
-    
-    // Return cleanup function
-    return () => {
-      setListeners(prev => {
-        const newListeners = new Set(prev);
-        newListeners.delete(listener);
-        return newListeners;
-      });
-    };
-  }, []);
+  const checkSubscriptionStatus = useCallback(async (customerInfo: CustomerInfo) => {
+    const { entitlements } = customerInfo;
+    const isPremium = entitlements.active.premium !== undefined;
 
-  // Notify all listeners of status change
-  const notifyStatusChange = useCallback((newStatus: SubscriptionStatus) => {
-    listeners.forEach(listener => {
-      try {
-        listener(newStatus);
-      } catch (error) {
-        console.error('Error in subscription status change listener:', error);
-      }
+    const newStatus = isPremium ? SubscriptionStatus.PREMIUM : SubscriptionStatus.FREE;
+
+    setSubscription({
+      status: newStatus,
+      lastUpdated: new Date(),
+      isLoaded: true,
     });
-  }, [listeners]);
-
-  // Load subscription status from storage on app start
-  useEffect(() => {
-    loadSubscriptionStatus();
   }, []);
 
-  const loadSubscriptionStatus = async () => {
-    try {
-      setIsLoading(true);
-      const storedStatus = await AsyncStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
-      if (storedStatus) {
-        const parsedStatus = JSON.parse(storedStatus);
-        const newSubscriptionState = {
-          ...parsedStatus,
-          lastUpdated: new Date(parsedStatus.lastUpdated),
-          isLoaded: true,
-        };
-        setSubscription(newSubscriptionState);
-        notifyStatusChange(newSubscriptionState.status);
-      } else {
-        // Default to free tier for new users
-        const newSubscriptionState = {
+  useEffect(() => {
+    const getInitialStatus = async () => {
+      try {
+        const customerInfo = await Purchases.getCustomerInfo();
+        await checkSubscriptionStatus(customerInfo);
+      } catch (error) {
+        console.error('Error fetching initial customer info:', error);
+        setSubscription({
           status: SubscriptionStatus.FREE,
           lastUpdated: new Date(),
           isLoaded: true,
-        };
-        setSubscription(newSubscriptionState);
-        notifyStatusChange(newSubscriptionState.status);
+        });
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading subscription status:', error);
-      // Fallback to free tier on error
-      const fallbackState = {
-        status: SubscriptionStatus.FREE,
-        lastUpdated: new Date(),
-        isLoaded: true,
-      };
-      setSubscription(fallbackState);
-      notifyStatusChange(fallbackState.status);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  const saveSubscriptionStatus = async (status: SubscriptionStatus) => {
-    try {
-      const newSubscriptionState: SubscriptionState = {
-        status,
-        lastUpdated: new Date(),
-        isLoaded: true,
-      };
-      
-      await AsyncStorage.setItem(
-        SUBSCRIPTION_STORAGE_KEY, 
-        JSON.stringify(newSubscriptionState)
-      );
-      
-      setSubscription(newSubscriptionState);
-      notifyStatusChange(status);
-    } catch (error) {
-      console.error('Error saving subscription status:', error);
-      throw error;
-    }
-  };
+    getInitialStatus();
+    Purchases.addCustomerInfoUpdateListener(checkSubscriptionStatus);
+
+    return () => {
+      Purchases.removeCustomerInfoUpdateListener(checkSubscriptionStatus);
+    };
+  }, [checkSubscriptionStatus]);
 
   const upgradeToPremium = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      // TODO: Integrate with actual payment system
-      // For now, we'll simulate a successful upgrade
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      await saveSubscriptionStatus(SubscriptionStatus.PREMIUM);
-    } catch (error) {
-      console.error('Error upgrading to premium:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const resetToFree = async () => {
-    try {
-      setIsLoading(true);
-      await saveSubscriptionStatus(SubscriptionStatus.FREE);
-    } catch (error) {
-      console.error('Error resetting to free:', error);
-      throw error;
+      const offerings = await Purchases.getOfferings();
+      if (offerings.current && offerings.current.availablePackages.length > 0) {
+        const pkg = offerings.current.availablePackages[0];
+        console.log('Purchasing package:', pkg.identifier);
+        const { customerInfo } = await Purchases.purchasePackage(pkg);
+        await checkSubscriptionStatus(customerInfo);
+      } else {
+        console.log('No offerings available.');
+      }
+    } catch (error: any) {
+      if (!error.userCancelled) {
+        console.error('Error purchasing package:', error);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const refreshSubscriptionStatus = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      // TODO: Check with backend/subscription service
-      // For now, we'll just reload from storage
-      await loadSubscriptionStatus();
+      const customerInfo = await Purchases.getCustomerInfo();
+      await checkSubscriptionStatus(customerInfo);
     } catch (error) {
-      console.error('Error refreshing subscription status:', error);
-      throw error;
+      console.error('Error refreshing customer info:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle subscription expiration (future feature)
-  const handleSubscriptionExpiration = useCallback(async () => {
-    try {
-      await saveSubscriptionStatus(SubscriptionStatus.EXPIRED);
-    } catch (error) {
-      console.error('Error handling subscription expiration:', error);
-    }
-  }, []);
-
-  // Expose listener functionality in context
-  const contextValue: SubscriptionContextType & {
-    addStatusChangeListener: typeof addStatusChangeListener;
-  } = {
+  const contextValue: SubscriptionContextType = {
     subscription,
     isPremium: subscription.status === SubscriptionStatus.PREMIUM,
     isFree: subscription.status === SubscriptionStatus.FREE,
     isLoading,
     upgradeToPremium,
-    resetToFree,
     refreshSubscriptionStatus,
-    addStatusChangeListener,
   };
 
   return (

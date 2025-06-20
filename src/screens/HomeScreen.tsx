@@ -34,7 +34,7 @@ export const HomeScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const { streak, weeklyCompletion, refreshStreak, updateWeeklyCompletion } = useStreak();
   const { theme } = useTheme();
-  const { resetToFree } = useSubscription();
+  const { isPremium } = useSubscription();
 
   const handleSetTask = async (text: string) => {
     const task = {
@@ -94,7 +94,6 @@ export const HomeScreen = () => {
   const handleDevReset = async () => {
     try {
       await taskStorage.clearAll();
-      await resetToFree();
       setCurrentTask(null);
       refreshStreak?.();
     } catch (error) {

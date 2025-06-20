@@ -14,13 +14,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "userInterfaceStyle": "automatic"
+      "userInterfaceStyle": "automatic",
+      "bundleIdentifier": "com.zainmomo.onebigthing"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.zainmomo.onebigthing",
       "edgeToEdgeEnabled": true,
       "userInterfaceStyle": "automatic"
     },
