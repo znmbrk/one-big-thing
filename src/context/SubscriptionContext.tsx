@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import Purchases, { PurchasesStoreProduct, CustomerInfo, PurchasesOffering } from 'react-native-purchases';
-import { 
-  SubscriptionContextType, 
-  SubscriptionState, 
+import {
+  SubscriptionContextType,
+  SubscriptionState,
   SubscriptionStatus,
 } from '../types/subscription';
 import { Platform } from 'react-native';
@@ -10,6 +10,10 @@ import { Platform } from 'react-native';
 const API_KEYS = {
   apple: 'appl_XnVCDkYrMoNSCnUPthacgEgRrpv',
 };
+
+// DEV ONLY: Toggle this to test premium features without purchasing
+// Set to true to simulate premium status, false to use actual RevenueCat status
+const DEV_FORCE_PREMIUM = false;
 
 const defaultSubscriptionState: SubscriptionState = {
   status: SubscriptionStatus.FREE,
@@ -44,6 +48,17 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [])
 
   const checkSubscriptionStatus = useCallback(async (customerInfo: CustomerInfo) => {
+    // DEV ONLY: Override with forced premium status if enabled
+    if (__DEV__ && DEV_FORCE_PREMIUM) {
+      console.log('🔧 DEV MODE: Forcing premium status');
+      setSubscription({
+        status: SubscriptionStatus.PREMIUM,
+        lastUpdated: new Date(),
+        isLoaded: true,
+      });
+      return;
+    }
+
     const { entitlements } = customerInfo;
     const isPremium = entitlements.active.premium !== undefined;
 
@@ -86,18 +101,25 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const upgradeToPremium = async () => {
     setIsLoading(true);
     try {
+      console.log('🔄 Fetching offerings from RevenueCat...');
       const offerings = await Purchases.getOfferings();
+      console.log('📦 Offerings received:', offerings);
+      console.log('📦 Current offering:', offerings.current);
+
       if (offerings.current && offerings.current.availablePackages.length > 0) {
         const pkg = offerings.current.availablePackages[0];
-        console.log('Purchasing package:', pkg.identifier);
+        console.log('✅ Purchasing package:', pkg.identifier);
         const { customerInfo } = await Purchases.purchasePackage(pkg);
         await checkSubscriptionStatus(customerInfo);
       } else {
-        console.log('No offerings available.');
+        console.error('❌ No offerings available. Check RevenueCat dashboard configuration.');
+        console.error('Available offerings:', Object.keys(offerings.all));
+        alert('Purchase unavailable. Please check RevenueCat configuration.');
       }
     } catch (error: any) {
       if (!error.userCancelled) {
-        console.error('Error purchasing package:', error);
+        console.error('❌ Error purchasing package:', error);
+        alert(`Purchase error: ${error.message || 'Unknown error'}`);
       }
     } finally {
       setIsLoading(false);
