@@ -101,6 +101,9 @@ export const HomeScreen = () => {
     }
   };
 
+  // DEV ONLY - Show premium status
+  const devPremiumText = isPremium ? '✨ Premium Active' : '🆓 Free User';
+
   console.log('Rendering StreakBar with completion:', weeklyCompletion);
 
   return (
@@ -143,12 +146,17 @@ export const HomeScreen = () => {
 
         {/* DEV ONLY - Will be removed before production */}
         {__DEV__ && (
-          <TouchableOpacity
-            style={styles.devResetButton}
-            onPress={handleDevReset}
-          >
-            <Text style={styles.devResetText}>🔄 Reset (Dev Only)</Text>
-          </TouchableOpacity>
+          <View style={styles.devContainer}>
+            <Text style={[styles.devPremiumStatus, { color: theme.secondaryText }]}>
+              {devPremiumText}
+            </Text>
+            <TouchableOpacity
+              style={styles.devResetButton}
+              onPress={handleDevReset}
+            >
+              <Text style={styles.devResetText}>🔄 Reset</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     </SafeAreaView>
@@ -230,17 +238,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   // DEV ONLY - Will be removed before production
-  devResetButton: {
+  devContainer: {
     position: 'absolute',
     bottom: 20,
     right: 20,
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  devPremiumStatus: {
+    fontSize: 11,
+    fontWeight: '600',
+    opacity: 0.7,
+  },
+  devResetButton: {
     backgroundColor: '#FF3B30',
     padding: 8,
+    paddingHorizontal: 12,
     borderRadius: 8,
     opacity: 0.8,
   },
   devResetText: {
     color: '#fff',
     fontSize: 12,
+    fontWeight: '600',
   },
 }); 
