@@ -1,11 +1,9 @@
 export interface Theme {
   background: string;
   text: string;
-  textSecondary: string;
   accent: string;
   cardBackground: string;
   dotActive: string;
-  dotInactive: string;
   secondaryText: string;
   border: string;
   shadowColor: string;
@@ -22,11 +20,9 @@ export interface Theme {
 export const lightTheme: Theme = {
   background: '#FFFFFF',
   text: '#000000',
-  textSecondary: '#666666',
   accent: '#007AFF',
   cardBackground: '#FFFFFF',
   dotActive: '#007AFF',
-  dotInactive: '#E5E5EA',
   secondaryText: '#666666',
   border: '#E5E5EA',
   shadowColor: '#000000',
@@ -49,7 +45,6 @@ export const darkTheme: Theme = {
   secondaryText: '#ABABAB',
   accent: '#0A84FF',
   dotActive: '#0A84FF',
-  dotInactive: '#48484A',
   border: '#48484A',
   shadowColor: '#FFFFFF',
   inactiveDot: '#48484A',
@@ -59,4 +54,4 @@ export const darkTheme: Theme = {
   errorBackground: '#48484A',
   successText: '#FFFFFF',
   errorText: '#FFFFFF',
-}; 
+};

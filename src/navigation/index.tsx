@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { HomeScreen } from '../screens/HomeScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
@@ -18,8 +18,9 @@ export const Navigation = () => {
   return (
     <NavigationContainer
       theme={{
-        dark: theme.isDark,
+        ...(theme.isDark ? DarkTheme : DefaultTheme),
         colors: {
+          ...(theme.isDark ? DarkTheme : DefaultTheme).colors,
           primary: theme.accent,
           background: theme.background,
           card: theme.cardBackground,
@@ -27,24 +28,6 @@ export const Navigation = () => {
           border: theme.border,
           notification: theme.accent,
         },
-        fonts: {
-          regular: {
-            fontFamily: 'Inter-Regular',
-            fontWeight: '400',
-          },
-          medium: {
-            fontFamily: 'Inter-Medium',
-            fontWeight: '500',
-          },
-          bold: {
-            fontFamily: 'Inter-Bold',
-            fontWeight: '700',
-          },
-          heavy: {
-            fontFamily: 'Inter-Heavy',
-            fontWeight: '800',
-          }
-        }
       }}
     >
       <Stack.Navigator
@@ -67,12 +50,13 @@ export const Navigation = () => {
           component={HomeScreen}
           options={{ headerShown: false }}
         />
-        <Stack.Screen 
-          name="History" 
+        <Stack.Screen
+          name="History"
           component={HistoryScreen}
           options={{
             title: 'Task History',
             presentation: 'modal',
+            headerShown: false,
           }}
         />
       </Stack.Navigator>

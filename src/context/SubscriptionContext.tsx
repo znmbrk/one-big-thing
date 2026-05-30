@@ -1,19 +1,20 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import Purchases, { PurchasesStoreProduct, CustomerInfo, PurchasesOffering } from 'react-native-purchases';
+import Purchases, { CustomerInfo } from 'react-native-purchases';
 import {
   SubscriptionContextType,
   SubscriptionState,
   SubscriptionStatus,
 } from '../types/subscription';
-import { Platform } from 'react-native';
+import { Alert, Platform, ActivityIndicator, View } from 'react-native';
+import { REVENUECAT_APPLE_KEY } from '../config/env';
+import { useTheme } from './ThemeContext';
+import { taskStorage } from '../services/taskStorage';
+
+export const REVENUECAT_ENTITLEMENT = 'premium';
 
 const API_KEYS = {
-  apple: 'appl_XnVCDkYrMoNSCnUPthacgEgRrpv',
+  apple: REVENUECAT_APPLE_KEY,
 };
-
-// DEV ONLY: Toggle this to test premium features without purchasing
-// Set to true to simulate premium status, false to use actual RevenueCat status
-const DEV_FORCE_PREMIUM = false;
 
 const defaultSubscriptionState: SubscriptionState = {
   status: SubscriptionStatus.FREE,
@@ -33,93 +34,88 @@ const SubscriptionContext = createContext<SubscriptionContextType>({
 export const useSubscription = () => useContext(SubscriptionContext);
 
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { theme } = useTheme();
   const [subscription, setSubscription] = useState<SubscriptionState>(defaultSubscriptionState);
   const [isLoading, setIsLoading] = useState(true);
   const [isConfiguring, setIsConfiguring] = useState(true);
 
-  useEffect(() => {
-    const configure = async () => {
-      if (Platform.OS === 'ios') {
-        await Purchases.configure({ apiKey: API_KEYS.apple });
-      }
-      setIsConfiguring(false);
-    }
-    configure();
-  }, [])
-
   const checkSubscriptionStatus = useCallback(async (customerInfo: CustomerInfo) => {
-    // DEV ONLY: Override with forced premium status if enabled
-    if (__DEV__ && DEV_FORCE_PREMIUM) {
-      console.log('🔧 DEV MODE: Forcing premium status');
-      setSubscription({
-        status: SubscriptionStatus.PREMIUM,
-        lastUpdated: new Date(),
-        isLoaded: true,
-      });
-      return;
-    }
-
     const { entitlements } = customerInfo;
-    const isPremium = entitlements.active.premium !== undefined;
-
+    const isPremium = entitlements.active[REVENUECAT_ENTITLEMENT] !== undefined;
     const newStatus = isPremium ? SubscriptionStatus.PREMIUM : SubscriptionStatus.FREE;
-
     setSubscription({
       status: newStatus,
       lastUpdated: new Date(),
       isLoaded: true,
     });
+    await taskStorage.saveSubscriptionStatus(newStatus);
   }, []);
 
   useEffect(() => {
-    if(isConfiguring) return;
+    const init = async () => {
+      // Load cached status immediately for optimistic render
+      const cachedStatus = await taskStorage.getSubscriptionStatus();
+      if (cachedStatus) {
+        setSubscription({
+          status: cachedStatus as SubscriptionStatus,
+          lastUpdated: new Date(),
+          isLoaded: true,
+        });
+        setIsConfiguring(false); // render children immediately with cached data
+      }
 
-    const getInitialStatus = async () => {
+      // Android: skip RevenueCat, stay on FREE
+      if (Platform.OS !== 'ios') {
+        if (!cachedStatus) {
+          setSubscription({ status: SubscriptionStatus.FREE, lastUpdated: new Date(), isLoaded: true });
+          setIsConfiguring(false);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // iOS: configure RevenueCat
+      await Purchases.configure({ apiKey: API_KEYS.apple });
+      setIsConfiguring(false);
+
+      // Fetch live status (background update if cache existed, blocking if not)
       try {
         const customerInfo = await Purchases.getCustomerInfo();
         await checkSubscriptionStatus(customerInfo);
       } catch (error) {
         console.error('Error fetching initial customer info:', error);
-        setSubscription({
-          status: SubscriptionStatus.FREE,
-          lastUpdated: new Date(),
-          isLoaded: true,
-        });
+        if (!cachedStatus) {
+          setSubscription({ status: SubscriptionStatus.FREE, lastUpdated: new Date(), isLoaded: true });
+        }
       } finally {
         setIsLoading(false);
       }
+
+      Purchases.addCustomerInfoUpdateListener(checkSubscriptionStatus);
     };
 
-    getInitialStatus();
-    Purchases.addCustomerInfoUpdateListener(checkSubscriptionStatus);
+    init();
 
     return () => {
       Purchases.removeCustomerInfoUpdateListener(checkSubscriptionStatus);
     };
-  }, [checkSubscriptionStatus, isConfiguring]);
+  }, [checkSubscriptionStatus]);
 
   const upgradeToPremium = async () => {
     setIsLoading(true);
     try {
-      console.log('🔄 Fetching offerings from RevenueCat...');
       const offerings = await Purchases.getOfferings();
-      console.log('📦 Offerings received:', offerings);
-      console.log('📦 Current offering:', offerings.current);
-
       if (offerings.current && offerings.current.availablePackages.length > 0) {
         const pkg = offerings.current.availablePackages[0];
-        console.log('✅ Purchasing package:', pkg.identifier);
         const { customerInfo } = await Purchases.purchasePackage(pkg);
         await checkSubscriptionStatus(customerInfo);
       } else {
-        console.error('❌ No offerings available. Check RevenueCat dashboard configuration.');
-        console.error('Available offerings:', Object.keys(offerings.all));
-        alert('Purchase unavailable. Please check RevenueCat configuration.');
+        Alert.alert('Purchase Unavailable', 'No offerings found. Please try again later.');
       }
     } catch (error: any) {
       if (!error.userCancelled) {
-        console.error('❌ Error purchasing package:', error);
-        alert(`Purchase error: ${error.message || 'Unknown error'}`);
+        console.error('Error purchasing package:', error);
+        Alert.alert('Purchase Failed', error.message || 'Something went wrong. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -133,6 +129,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await checkSubscriptionStatus(customerInfo);
     } catch (error) {
       console.error('Error refreshing customer info:', error);
+      Alert.alert(
+        'Refresh Failed',
+        'Unable to refresh your subscription status. Please check your connection and try again.',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -147,9 +147,19 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     refreshSubscriptionStatus,
   };
 
+  // Only block rendering during the one-time RevenueCat configuration.
+  // isLoading changes during purchase/refresh but should not unmount children.
+  if (isConfiguring) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={theme.accent} />
+      </View>
+    );
+  }
+
   return (
     <SubscriptionContext.Provider value={contextValue}>
-      {!isConfiguring && !isLoading ? children : null}
+      {children}
     </SubscriptionContext.Provider>
   );
-}; 
+};

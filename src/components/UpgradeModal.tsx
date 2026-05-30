@@ -1,123 +1,123 @@
-import React, { useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  Modal, 
-  Pressable, 
-  Animated, 
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  Pressable,
+  Animated,
   TouchableOpacity,
-  Dimensions 
+  useWindowDimensions,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { UpgradeModalProps } from '../types/subscription';
-import { getHistoricalDataPreview } from '../utils/subscriptionUtils';
 import { DailyTask } from '../types/Task';
+import { getHistoricalDataPreview } from '../utils/subscriptionUtils';
 
-const { width: screenWidth } = Dimensions.get('window');
+interface UpgradeModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onUpgrade: () => Promise<void>;
+  allTasks?: DailyTask[];
+}
 
-export const UpgradeModal: React.FC<UpgradeModalProps> = ({ 
-  visible, 
-  onClose, 
+export const UpgradeModal: React.FC<UpgradeModalProps> = ({
+  visible,
+  onClose,
   onUpgrade,
-  allTasks = [] // Pass all tasks to show preview
+  allTasks = [],
 }) => {
   const { theme } = useTheme();
   const { isLoading } = useSubscription();
-  
+  const { width: screenWidth } = useWindowDimensions();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isModalMounted, setIsModalMounted] = useState(false);
+
   const slideAnim = useRef(new Animated.Value(300)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
-  const historicalData = getHistoricalDataPreview(allTasks);
+  const historicalData = useMemo(
+    () => getHistoricalDataPreview(allTasks),
+    [allTasks]
+  );
 
   useEffect(() => {
     if (visible) {
-      // Animate modal appearance
-      Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      // Animate modal disappearance
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 300,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.9,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      setIsModalMounted(true);
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (!visible && isModalMounted) {
+      Animated.parallel([
+        Animated.timing(slideAnim, { toValue: 300, duration: 200, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 0.9, duration: 200, useNativeDriver: true }),
+      ]).start(() => {
+        setIsModalMounted(false);
+      });
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible && isModalMounted) {
+      slideAnim.setValue(300);
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.9);
+      Animated.parallel([
+        Animated.spring(slideAnim, { toValue: 0, tension: 100, friction: 8, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible, isModalMounted]);
+
   const handleUpgrade = async () => {
+    setErrorMessage(null);
     try {
       await onUpgrade();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upgrade failed:', error);
-      // Handle error gracefully
+      if (!error?.userCancelled) {
+        setErrorMessage('Purchase failed. Please try again.');
+      }
     }
+  };
+
+  const handleClose = () => {
+    setErrorMessage(null);
+    onClose();
   };
 
   return (
     <Modal
-      visible={visible}
+      visible={isModalMounted}
       transparent
       animationType="none"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <Animated.View 
-        style={[
-          styles.overlay,
-          { opacity: fadeAnim }
-        ]}
-      >
-        <Pressable 
-          style={styles.dismissArea}
-          onPress={onClose}
+      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+        <Pressable
+          style={[
+            styles.dismissArea,
+            { backgroundColor: theme.isDark ? 'rgba(0,0,0,0.75)' : 'rgba(0,0,0,0.6)' },
+          ]}
+          onPress={handleClose}
         />
-        
+
         <Animated.View
           style={[
             styles.modalContent,
             {
               backgroundColor: theme.cardBackground,
-              transform: [
-                { translateY: slideAnim },
-                { scale: scaleAnim }
-              ],
+              transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
             },
           ]}
         >
-          <View style={styles.modalHandle} />
-          
+          <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>
               Unlock Your Full Journey
@@ -201,11 +201,14 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                 {isLoading ? 'Upgrading...' : 'Upgrade to Premium'}
               </Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={onClose}
-            >
+
+            {errorMessage !== null && (
+              <Text style={[styles.errorText, { color: theme.errorText }]}>
+                {errorMessage}
+              </Text>
+            )}
+
+            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
               <Text style={[styles.cancelButtonText, { color: theme.secondaryText }]}>
                 Maybe Later
               </Text>
@@ -224,7 +227,6 @@ const styles = StyleSheet.create({
   },
   dismissArea: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
     borderTopLeftRadius: 24,
@@ -237,7 +239,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#999',
     alignSelf: 'center',
     marginBottom: 20,
   },
@@ -325,4 +326,9 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
   },
-}); 
+  errorText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: -4,
+  },
+});

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Pressable } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday, isSameDay } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday } from 'date-fns';
 import { DailyTask } from '../types/Task';
 
 interface CalendarViewProps {
@@ -31,6 +31,14 @@ export const CalendarView = ({ tasks, onDayPress }: CalendarViewProps) => {
     fadeAnim.setValue(0);
     setCurrentDate(addMonths(currentDate, 1));
   };
+
+  const tasksByDate = useMemo(() =>
+    tasks.reduce((acc, task) => {
+      acc[format(new Date(task.date), 'yyyy-MM-dd')] = task;
+      return acc;
+    }, {} as { [key: string]: DailyTask }),
+    [tasks]
+  );
 
   const renderHeader = () => {
     return (
@@ -71,11 +79,6 @@ export const CalendarView = ({ tasks, onDayPress }: CalendarViewProps) => {
     const rows: React.ReactNode[] = [];
     let cells: React.ReactNode[] = [];
 
-    const tasksByDate = tasks.reduce((acc, task) => {
-      acc[format(new Date(task.date), 'yyyy-MM-dd')] = task;
-      return acc;
-    }, {} as { [key: string]: DailyTask });
-
     days.forEach((day, i) => {
       const dayStr = format(day, 'yyyy-MM-dd');
       const task = tasksByDate[dayStr];
@@ -86,6 +89,7 @@ export const CalendarView = ({ tasks, onDayPress }: CalendarViewProps) => {
             styles.cellText,
             { color: isSameMonth(day, currentDate) ? theme.text : theme.secondaryText },
             isToday(day) && styles.todayText,
+            isToday(day) && { color: theme.accent },
           ]}>
             {format(day, 'd')}
           </Text>
@@ -157,7 +161,6 @@ const styles = StyleSheet.create({
   },
   todayText: {
     fontWeight: 'bold',
-    color: '#007BFF', // A distinct color for today
   },
   dot: {
     width: 6,

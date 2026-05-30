@@ -5,11 +5,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const useDailyTask = () => {
   const [currentTask, setCurrentTask] = useState<DailyTask | null>(null);
-  const [streak, setStreak] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadTask();
-    loadStreak();
   }, []);
 
   const loadTask = async () => {
@@ -18,15 +17,7 @@ export const useDailyTask = () => {
       setCurrentTask(task);
     } catch (error) {
       console.error('Error loading task:', error);
-    }
-  };
-
-  const loadStreak = async () => {
-    try {
-      const currentStreak = await taskStorage.getStreak();
-      setStreak(currentStreak);
-    } catch (error) {
-      console.error('Error loading streak:', error);
+      setError('Failed to load task. Please restart the app.');
     }
   };
 
@@ -35,39 +26,36 @@ export const useDailyTask = () => {
       if (task === null) {
         await AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_TASK);
       } else {
-        await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_TASK, JSON.stringify(task));
+        await taskStorage.saveCurrentTask(task);
       }
       setCurrentTask(task);
     } catch (error) {
       console.error('Error saving task:', error);
+      setError('Failed to save task. Please try again.');
     }
   };
 
   const completeTask = async (completed: boolean) => {
     if (!currentTask) return;
-
     const updatedTask = { ...currentTask, completed };
-    await saveTask(updatedTask);
-    
-    if (completed) {
-      const newStreak = streak + 1;
-      setStreak(newStreak);
-      await taskStorage.saveStreak(newStreak);
-      await taskStorage.addToHistory(updatedTask);
+    try {
+      await saveTask(updatedTask);
+      if (completed) {
+        await taskStorage.addToHistory(updatedTask);
+      }
+    } catch (error) {
+      console.error('Error completing task:', error);
+      setError('Failed to save completion. Please try again.');
     }
   };
+
+  const clearError = () => setError(null);
 
   return {
     currentTask,
     setCurrentTask: saveTask,
     completeTask,
-    streak,
+    error,
+    clearError,
   };
 };
-
-const isToday = (date: Date) => {
-  const today = new Date();
-  return date.getDate() === today.getDate() &&
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear();
-}; 

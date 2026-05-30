@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControlProps, Animated } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { EmptyState } from './EmptyState';
 import { useSubscription } from '../context/SubscriptionContext';
 import { DailyTask } from '../types/Task';
-import { format, isSameDay } from 'date-fns';
+import { format } from 'date-fns';
 
 interface TaskTimelineProps {
   tasks: DailyTask[];
@@ -23,57 +24,50 @@ export const TaskTimeline = ({ tasks, refreshControl }: TaskTimelineProps) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [visibleItems, setVisibleItems] = useState<Set<number>>(new Set());
 
-  // Group tasks by date
-  const groupedTasks = tasks.reduce((groups: GroupedTasks[], task) => {
-    const date = format(new Date(task.date), 'MMM d, yyyy');
-    const existingGroup = groups.find(group => group.date === date);
-    
-    if (existingGroup) {
-      existingGroup.tasks.push(task);
-    } else {
-      groups.push({ date, tasks: [task] });
-    }
-    
-    return groups;
-  }, []);
+  const groupedTasks = useMemo(
+    () =>
+      tasks.reduce((groups: GroupedTasks[], task) => {
+        const date = format(new Date(task.date), 'MMM d, yyyy');
+        const existingGroup = groups.find(group => group.date === date);
+        if (existingGroup) {
+          existingGroup.tasks.push(task);
+        } else {
+          groups.push({ date, tasks: [task] });
+        }
+        return groups;
+      }, []),
+    [tasks]
+  );
 
-  // Initialize main animations
   useEffect(() => {
     if (!isInitialized && groupedTasks.length > 0) {
       setIsInitialized(true);
-      
-      // Animate timeline appearance
+
       Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 100, friction: 8, useNativeDriver: true }),
       ]).start();
 
-      // Animate items in sequence
+      const timers: ReturnType<typeof setTimeout>[] = [];
       groupedTasks.forEach((_, index) => {
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           setVisibleItems(prev => new Set([...prev, index]));
         }, index * 100);
+        timers.push(timer);
       });
+
+      return () => timers.forEach(clearTimeout);
     }
   }, [groupedTasks.length, isInitialized]);
 
   const renderTimelineItem = ({ item, index }: { item: GroupedTasks; index: number }) => {
     const isVisible = visibleItems.has(index);
-    
+
     return (
       <Animated.View
         style={[
           styles.timelineItem,
-          { 
+          {
             backgroundColor: theme.cardBackground,
             opacity: isVisible ? 1 : 0,
             transform: [{ translateY: isVisible ? 0 : 30 }],
@@ -81,22 +75,20 @@ export const TaskTimeline = ({ tasks, refreshControl }: TaskTimelineProps) => {
         ]}
       >
         <View style={styles.dateHeader}>
-          <Text style={[styles.dateText, { color: theme.text }]}>
-            {item.date}
-          </Text>
+          <Text style={[styles.dateText, { color: theme.text }]}>{item.date}</Text>
           <View style={[styles.dateLine, { backgroundColor: theme.border }]} />
         </View>
-        
-        {item.tasks.map((task, taskIndex) => (
-          <View 
-            key={task.id} 
+
+        {item.tasks.map(task => (
+          <View
+            key={task.id}
             style={[
               styles.taskCard,
-              { 
-                backgroundColor: task.completed 
-                  ? (isPremium ? theme.accent + '15' : theme.accent + '20')
+              {
+                borderTopColor: theme.border,
+                backgroundColor: task.completed
+                  ? (isPremium ? theme.accent + '20' : theme.accent + '15')
                   : theme.cardBackground,
-                // Premium-specific styling for completed tasks
                 ...(isPremium && task.completed && {
                   borderLeftWidth: 3,
                   borderLeftColor: theme.accent,
@@ -106,27 +98,24 @@ export const TaskTimeline = ({ tasks, refreshControl }: TaskTimelineProps) => {
                   shadowRadius: 4,
                   elevation: 4,
                 }),
-              }
+              },
             ]}
           >
             <View style={styles.taskContent}>
               <View style={styles.taskTextContainer}>
-                <Text style={[styles.taskText, { color: theme.text }]}>
-                  {task.text}
-                </Text>
+                <Text style={[styles.taskText, { color: theme.text }]}>{task.text}</Text>
               </View>
               {task.completed && (
-                <View style={[
-                  styles.completedBadge,
-                  { 
-                    backgroundColor: isPremium ? theme.accent : theme.accent + '20',
-                    borderColor: isPremium ? theme.accent : theme.accent,
-                  }
-                ]}>
-                  <Text style={[
-                    styles.completedText, 
-                    { color: isPremium ? 'white' : theme.accent }
-                  ]}>
+                <View
+                  style={[
+                    styles.completedBadge,
+                    {
+                      backgroundColor: isPremium ? theme.accent : theme.accent + '20',
+                      borderColor: theme.accent,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.completedText, { color: isPremium ? theme.devButtonText : theme.accent }]}>
                     ✓ Completed
                   </Text>
                 </View>
@@ -138,41 +127,26 @@ export const TaskTimeline = ({ tasks, refreshControl }: TaskTimelineProps) => {
     );
   };
 
-  // Show upgrade prompt for free users if they have limited data
   const showUpgradePrompt = isFree && tasks.length === 0;
 
   if (showUpgradePrompt) {
     return (
-      <Animated.View 
-        style={[
-          styles.emptyContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
-      >
-        <View style={styles.upgradePromptContainer}>
-          <Text style={[styles.upgradePromptTitle, { color: theme.text }]}>
-            Start Your Journey
-          </Text>
-          <Text style={[styles.upgradePromptText, { color: theme.secondaryText }]}>
-            Complete your first "one big thing" to see your timeline
-          </Text>
-        </View>
+      <Animated.View style={[styles.emptyContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+        <EmptyState
+          title="Start Your Journey"
+          subtitle={'Complete your first "one big thing" to see your timeline'}
+        />
       </Animated.View>
     );
   }
 
-  // Show premium indicator for premium users
   const renderPremiumHeader = () => {
     if (!isPremium) return null;
-    
     return (
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.premiumHeader, 
-          { 
+          styles.premiumHeader,
+          {
             backgroundColor: theme.accent + '10',
             opacity: fadeAnim,
             transform: [{ translateY: slideAnim }],
@@ -190,14 +164,8 @@ export const TaskTimeline = ({ tasks, refreshControl }: TaskTimelineProps) => {
   };
 
   return (
-    <Animated.View 
-      style={[
-        styles.container,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-        },
-      ]}
+    <Animated.View
+      style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
     >
       {renderPremiumHeader()}
       <FlatList
@@ -206,10 +174,7 @@ export const TaskTimeline = ({ tasks, refreshControl }: TaskTimelineProps) => {
         keyExtractor={item => item.date}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
-        decelerationRate="normal"
         bounces={true}
-        snapToAlignment="start"
-        scrollEventThrottle={16}
         refreshControl={refreshControl}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -218,11 +183,10 @@ export const TaskTimeline = ({ tasks, refreshControl }: TaskTimelineProps) => {
             </Text>
           </View>
         }
-        // Ensure items are visible immediately
-        initialNumToRender={groupedTasks.length}
-        maxToRenderPerBatch={groupedTasks.length}
-        windowSize={groupedTasks.length + 1}
-        removeClippedSubviews={false}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
       />
     </Animated.View>
   );
@@ -257,7 +221,7 @@ const styles = StyleSheet.create({
   taskCard: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
+    borderTopColor: 'transparent',
   },
   taskContent: {
     flexDirection: 'row',
@@ -292,21 +256,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  upgradePromptContainer: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  upgradePromptTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  upgradePromptText: {
-    fontSize: 16,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
   premiumHeader: {
     padding: 16,
     marginHorizontal: 16,
@@ -323,4 +272,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
   },
-}); 
+});

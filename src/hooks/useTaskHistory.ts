@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { DailyTask } from '../types/Task';
 import { taskStorage } from '../services/taskStorage';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -8,16 +8,17 @@ export const useTaskHistory = (limit?: number) => {
   const [allTasks, setAllTasks] = useState<DailyTask[]>([]);
   const [filteredTasks, setFilteredTasks] = useState<DailyTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { subscription } = useSubscription();
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       setLoading(true);
       const tasks = await taskStorage.getHistory();
-      
+
       // Remove duplicates by keeping only the latest task for each date
       const uniqueTasks = tasks.reduce((acc: DailyTask[], current) => {
-        const exists = acc.find(task => 
+        const exists = acc.find(task =>
           new Date(task.date).toDateString() === new Date(current.date).toDateString()
         );
         if (!exists) {
@@ -27,40 +28,38 @@ export const useTaskHistory = (limit?: number) => {
       }, []);
 
       setAllTasks(uniqueTasks);
-      
+
       // Apply subscription-based filtering
       const filtered = filterTasksBySubscription(uniqueTasks, subscription.status);
-      
+
       // Apply limit if specified (mainly for backward compatibility)
       const limitedTasks = limit ? filtered.slice(0, limit) : filtered;
       setFilteredTasks(limitedTasks);
     } catch (error) {
       console.error('Error loading task history:', error);
+      setError('Failed to load history. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [subscription.status, limit]);
 
-  // Reload and refilter when subscription status changes
+  // Load from storage and filter in one operation when subscription becomes
+  // available or its status changes. This replaces the previous two-effect
+  // pattern that caused a redundant storage read followed by a re-filter.
   useEffect(() => {
     if (subscription.isLoaded) {
       loadHistory();
     }
-  }, [subscription.status, subscription.isLoaded]);
+  }, [subscription.isLoaded, subscription.status, loadHistory]);
 
-  // Refilter tasks when subscription changes (without reloading from storage)
-  useEffect(() => {
-    if (allTasks.length > 0) {
-      const filtered = filterTasksBySubscription(allTasks, subscription.status);
-      const limitedTasks = limit ? filtered.slice(0, limit) : filtered;
-      setFilteredTasks(limitedTasks);
-    }
-  }, [subscription.status, allTasks, limit]);
+  const clearError = () => setError(null);
 
   return {
     tasks: filteredTasks,
     allTasks, // Expose all tasks for premium features
     loading,
     refreshHistory: loadHistory,
+    error,
+    clearError,
   };
 }; 

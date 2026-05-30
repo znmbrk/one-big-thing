@@ -1,84 +1,99 @@
 import { useState, useEffect, useCallback } from 'react';
 import { taskStorage } from '../services/taskStorage';
-import {format, startOfWeek, isSameWeek } from 'date-fns';
+import { startOfWeek, isSameWeek } from 'date-fns';
+import { DailyTask } from '../types/Task';
+import { getWeekdayIndex } from '../utils/date';
 
-export const getWeekdayIndex = (date: Date) => {
-  const day = format(date, 'E');
-  return ['M', 'T', 'W', 'T', 'F', 'S', 'S'].findIndex(d => d === day[0]);
-};
+// Re-export for backward compatibility with HomeScreen
+export { getWeekdayIndex } from '../utils/date';
 
 export const useStreak = () => {
   const [streak, setStreak] = useState(0);
   const [weeklyCompletion, setWeeklyCompletion] = useState<number[]>(Array(7).fill(0));
-  const [lastWeekStart, setLastWeekStart] = useState<Date>(startOfWeek(new Date()));
+  const [error, setError] = useState<string | null>(null);
 
-  const loadStreak = async () => {
-    try {
-      const allTasks = await taskStorage.getHistory();
-      const today = new Date();
-      const currentWeekStart = startOfWeek(today);
-
-      // Check if we need to reset for a new week
-      if (!isSameWeek(lastWeekStart, today)) {
-        setWeeklyCompletion(Array(7).fill(0));
-        setStreak(0);
-        setLastWeekStart(currentWeekStart);
-        return;
-      }
-
-      const weekStatus = Array(7).fill(0);
-      
-      // Process tasks and update weekStatus
-      allTasks.forEach(task => {
-        const taskDate = new Date(task.date);
-        if (isSameWeek(taskDate, today) && task.completed) {
-          const weekdayIndex = getWeekdayIndex(taskDate);
-          console.log('Found completed task for day:', weekdayIndex); // Debug log
-          weekStatus[weekdayIndex] = 1;
-        }
-      });
-
-      console.log('Week status after loading:', weekStatus); // Debug log
-      setWeeklyCompletion(weekStatus);
-      const currentStreak = calculateStreak(weekStatus);
-      setStreak(currentStreak);
-    } catch (error) {
-      console.error('Error loading streak:', error);
-    }
-  };
-
-  const calculateStreak = (days: number[]) => {
-    let streak = 0;
+  const calculateStreak = (days: number[]): number => {
     const todayIndex = getWeekdayIndex(new Date());
-    
-    // If today isn't completed, no streak
-    if (days[todayIndex] !== 1) {
-      return 0;
-    }
-    
-    // Count backwards from today
+    if (days[todayIndex] !== 1) return 0;
+    let count = 0;
     let currentIndex = todayIndex;
     while (currentIndex >= 0 && days[currentIndex] === 1) {
-      streak++;
+      count++;
       currentIndex--;
     }
-    
-    return streak;
+    return count;
   };
+
+  const buildWeekStatus = (tasks: DailyTask[], today: Date): number[] => {
+    const status = Array(7).fill(0);
+    tasks.forEach(task => {
+      const taskDate = new Date(task.date);
+      if (isSameWeek(taskDate, today, { weekStartsOn: 1 }) && task.completed) {
+        const idx = getWeekdayIndex(taskDate);
+        if (idx >= 0) status[idx] = 1;
+      }
+    });
+    return status;
+  };
+
+  const loadStreak = useCallback(async () => {
+    try {
+      const today = new Date();
+      const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+      const persistedLastWeekStartIso = await taskStorage.getLastWeekStart();
+
+      const isNewWeek =
+        persistedLastWeekStartIso === null ||
+        !isSameWeek(new Date(persistedLastWeekStartIso), today, { weekStartsOn: 1 });
+
+      const allTasks = await taskStorage.getHistory();
+      const weekStatus = buildWeekStatus(allTasks, today);
+      const currentStreak = calculateStreak(weekStatus);
+
+      setWeeklyCompletion(weekStatus);
+      setStreak(currentStreak);
+
+      const writes: Promise<void>[] = [];
+      if (currentStreak !== streak) {
+        writes.push(taskStorage.saveStreak(currentStreak));
+      }
+      if (isNewWeek) {
+        writes.push(taskStorage.saveLastWeekStart(currentWeekStart.toISOString()));
+      }
+      if (writes.length > 0) {
+        await Promise.all(writes);
+      }
+    } catch (error) {
+      console.error('Error loading streak:', error);
+      setError('Failed to load streak data.');
+    }
+  }, []);
 
   useEffect(() => {
     loadStreak();
+  }, [loadStreak]);
+
+  const updateWeeklyCompletion = useCallback(async (newCompletion: number[]) => {
+    const updatedCompletion = [...newCompletion];
+    const newStreak = calculateStreak(updatedCompletion);
+    setWeeklyCompletion(updatedCompletion);
+    setStreak(newStreak);
+    try {
+      await taskStorage.saveStreak(newStreak);
+    } catch (error) {
+      console.error('Error persisting weekly completion:', error);
+      setError('Failed to save progress. Please try again.');
+    }
   }, []);
 
-  const updateWeeklyCompletion = useCallback((newCompletion: number[]) => {
-    console.log('Updating weekly completion to:', newCompletion);  // Debug log
-    setWeeklyCompletion([...newCompletion]);  // Force new array reference
-  }, []);
+  const clearError = () => setError(null);
 
-  return { 
-    streak, 
+  return {
+    streak,
     weeklyCompletion,
     refreshStreak: loadStreak,
     updateWeeklyCompletion,
+    error,
+    clearError,
   };
-}; 
+};

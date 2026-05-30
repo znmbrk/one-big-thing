@@ -12,10 +12,11 @@ export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const colorScheme = useColorScheme();
-  const [theme, setTheme] = useState(colorScheme === 'dark' ? darkTheme : lightTheme);
+  const [theme, setTheme] = useState<Theme>(() =>
+    colorScheme === 'dark' ? darkTheme : lightTheme
+  );
 
   useEffect(() => {
-    console.log('Current colorScheme:', colorScheme);
     setTheme(colorScheme === 'dark' ? darkTheme : lightTheme);
   }, [colorScheme]);
 
@@ -24,4 +25,4 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       {children}
     </ThemeContext.Provider>
   );
-}; 
+};

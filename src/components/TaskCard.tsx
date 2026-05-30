@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, useWindowDimensions } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { DailyTask } from '../types/Task';
 import { useQuote } from '../hooks/useQuote';
@@ -14,9 +14,23 @@ interface TaskCardProps {
 export const TaskCard = ({ task, onToggleComplete, checkboxScale }: TaskCardProps) => {
   const quote = useQuote();
   const { theme } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
+  const hasFiredConfetti = useRef(false);
+
+  // Reset the confetti flag when the task changes or is uncompleted
+  useEffect(() => {
+    if (!task.completed) {
+      hasFiredConfetti.current = false;
+    }
+  }, [task.id, task.completed]);
+
+  const shouldShowConfetti = task.completed && !hasFiredConfetti.current;
+  if (shouldShowConfetti) {
+    hasFiredConfetti.current = true;
+  }
 
   return (
-    <View style={[styles.container, { 
+    <View style={[styles.container, {
       backgroundColor: theme.cardBackground,
       shadowColor: theme.shadowColor,
     }]}>
@@ -26,7 +40,7 @@ export const TaskCard = ({ task, onToggleComplete, checkboxScale }: TaskCardProp
           <Text style={[styles.title, { color: theme.secondaryText }]}>Today's Focus</Text>
         </View>
         <Text style={[styles.taskText, { color: theme.text }]}>{task.text}</Text>
-        
+
         <TouchableOpacity
           onPress={onToggleComplete}
           style={styles.completionButton}
@@ -34,7 +48,7 @@ export const TaskCard = ({ task, onToggleComplete, checkboxScale }: TaskCardProp
           <Animated.View
             style={[
               styles.checkCircle,
-              { 
+              {
                 transform: [{ scale: checkboxScale }],
                 borderColor: theme.accent,
               },
@@ -48,15 +62,15 @@ export const TaskCard = ({ task, onToggleComplete, checkboxScale }: TaskCardProp
           </Text>
         </TouchableOpacity>
 
-        {task.completed && (
+        {shouldShowConfetti && (
           <ConfettiCannon
             count={50}
-            origin={{x: 150, y: 0}}
+            origin={{ x: screenWidth / 2, y: 0 }}
             autoStart={true}
             fadeOut={true}
           />
         )}
-        
+
         <Text style={[styles.quote, { color: theme.secondaryText }]}>{quote}</Text>
       </View>
     </View>
@@ -127,4 +141,4 @@ const styles = StyleSheet.create({
     marginTop: 20,
     textAlign: 'center',
   },
-}); 
+});

@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   Animated,
 } from 'react-native';
 import { useDailyTask } from '../hooks/useDailyTask';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation';
 import { TaskInput } from '../components/TaskInput';
 import { TaskCard } from '../components/TaskCard';
 import { useStreak, getWeekdayIndex } from '../hooks/useStreak';
@@ -20,54 +20,66 @@ import { useTheme } from '../context/ThemeContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type RootStackParamList = {
-  Home: undefined;
-  History: undefined;
-};
-
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const HomeScreen = () => {
-  const { currentTask, setCurrentTask, completeTask } = useDailyTask();
-  const checkboxScale = new Animated.Value(1);
-  const streakAnimation = new Animated.Value(1);
+  const { currentTask, setCurrentTask, completeTask, error: taskError, clearError: clearTaskError } = useDailyTask();
+  const checkboxScale = useRef(new Animated.Value(1)).current;
   const navigation = useNavigation<NavigationProp>();
-  const { streak, weeklyCompletion, refreshStreak, updateWeeklyCompletion } = useStreak();
+  const { streak, weeklyCompletion, refreshStreak, updateWeeklyCompletion, error: streakError, clearError: clearStreakError } = useStreak();
+
+  const activeError = taskError || streakError;
+  const clearActiveError = () => {
+    clearTaskError();
+    clearStreakError();
+  };
+
+  const errorOpacity = useRef(new Animated.Value(0)).current;
+  const errorTranslateY = useRef(new Animated.Value(-8)).current;
   const { theme } = useTheme();
   const { isPremium } = useSubscription();
+
+  useEffect(() => {
+    if (activeError) {
+      Animated.parallel([
+        Animated.timing(errorOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(errorTranslateY, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ]).start();
+      const timer = setTimeout(clearActiveError, 4000);
+      return () => clearTimeout(timer);
+    } else {
+      Animated.parallel([
+        Animated.timing(errorOpacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(errorTranslateY, { toValue: -8, duration: 150, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [activeError]);
 
   const handleSetTask = async (text: string) => {
     const task = {
       id: Date.now().toString(),
-      text: text,
+      text,
       completed: false,
       date: new Date().toISOString(),
     };
-
     await setCurrentTask(task);
   };
 
   const handleToggleComplete = async () => {
     if (!currentTask) return;
 
-    console.log('1. Starting task completion');
-
-    // More dramatic animation sequence
     Animated.sequence([
-      // Quick shrink
       Animated.timing(checkboxScale, {
         toValue: 0.8,
         duration: 100,
         useNativeDriver: true,
       }),
-      // Big bounce
       Animated.spring(checkboxScale, {
         toValue: 1.5,
         tension: 40,
         friction: 3,
         useNativeDriver: true,
       }),
-      // Settle back to normal
       Animated.spring(checkboxScale, {
         toValue: 1,
         tension: 40,
@@ -75,22 +87,18 @@ export const HomeScreen = () => {
       }),
     ]).start();
 
-    // Add haptic feedback
     Haptic.notificationAsync(Haptic.NotificationFeedbackType.Success);
 
-    await completeTask(!currentTask.completed);
-    console.log('2. Task completed');
+    const newCompleted = !currentTask.completed;
+    await completeTask(newCompleted);
     await refreshStreak();
-    console.log('3. Streak refreshed');
-    
-    // Force immediate update of the streak bar
+
     const todayIndex = getWeekdayIndex(new Date());
     const newCompletion = [...weeklyCompletion];
-    newCompletion[todayIndex] = 1;
+    newCompletion[todayIndex] = newCompleted ? 1 : 0;
     updateWeeklyCompletion(newCompletion);
   };
 
-  // DEV ONLY - Reset functionality
   const handleDevReset = async () => {
     try {
       await taskStorage.clearAll();
@@ -101,28 +109,40 @@ export const HomeScreen = () => {
     }
   };
 
-  // DEV ONLY - Show premium status
   const devPremiumText = isPremium ? '✨ Premium Active' : '🆓 Free User';
-
-  console.log('Rendering StreakBar with completion:', weeklyCompletion);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      {activeError && (
+        <Animated.View
+          style={[
+            styles.errorBanner,
+            {
+              backgroundColor: theme.errorBackground,
+              opacity: errorOpacity,
+              transform: [{ translateY: errorTranslateY }],
+            },
+          ]}
+        >
+          <Text style={[styles.errorMessage, { color: theme.errorText }]} numberOfLines={2}>
+            {activeError}
+          </Text>
+          <TouchableOpacity
+            onPress={clearActiveError}
+            style={styles.errorDismiss}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[styles.errorDismissText, { color: theme.errorText }]}>✕</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
       <View style={styles.container}>
         <View style={styles.streakContainer}>
-          <Animated.Text 
-            style={[
-              styles.streakText,
-              { 
-                transform: [{ scale: streakAnimation }],      
-                color: theme.text
-              }
-            ]}
-          >
+          <Text style={[styles.streakText, { color: theme.text }]}>
             🔥 {streak}-day streak
-          </Animated.Text>
-          <StreakBar 
-            completedDays={weeklyCompletion} 
+          </Text>
+          <StreakBar
+            completedDays={weeklyCompletion}
             onUpdate={updateWeeklyCompletion}
           />
         </View>
@@ -141,20 +161,19 @@ export const HomeScreen = () => {
           style={styles.historyButton}
           onPress={() => navigation.navigate('History')}
         >
-          <Text style={styles.historyButtonText}>View History</Text>
+          <Text style={[styles.historyButtonText, { color: theme.accent }]}>View History</Text>
         </TouchableOpacity>
 
-        {/* DEV ONLY - Will be removed before production */}
         {__DEV__ && (
           <View style={styles.devContainer}>
             <Text style={[styles.devPremiumStatus, { color: theme.secondaryText }]}>
               {devPremiumText}
             </Text>
             <TouchableOpacity
-              style={styles.devResetButton}
+              style={[styles.devResetButton, { backgroundColor: '#FF3B30' }]}
               onPress={handleDevReset}
             >
-              <Text style={styles.devResetText}>🔄 Reset</Text>
+              <Text style={[styles.devResetText, { color: '#FFFFFF' }]}>🔄 Reset</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -183,61 +202,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 10,
   },
-  inputContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 15,
-    fontSize: 18,
-    marginBottom: 20,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  taskContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  taskText: {
-    fontSize: 24,
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  checkboxContainer: {
-    padding: 10,
-  },
-  checkbox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 3,
-    borderColor: '#007AFF',
-  },
-  checkboxCompleted: {
-    backgroundColor: '#007AFF',
-  },
   historyButton: {
     padding: 15,
+    minHeight: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   historyButtonText: {
-    color: '#007AFF',
     fontSize: 18,
   },
-  // DEV ONLY - Will be removed before production
   devContainer: {
     position: 'absolute',
     bottom: 20,
@@ -251,15 +224,35 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   devResetButton: {
-    backgroundColor: '#FF3B30',
     padding: 8,
     paddingHorizontal: 12,
+    minHeight: 44,
     borderRadius: 8,
     opacity: 0.8,
+    justifyContent: 'center',
   },
   devResetText: {
-    color: '#fff',
     fontSize: 12,
     fontWeight: '600',
   },
-}); 
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  errorMessage: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  errorDismiss: {
+    paddingLeft: 12,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  errorDismissText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});

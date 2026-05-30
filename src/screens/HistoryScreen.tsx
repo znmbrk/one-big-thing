@@ -1,22 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, Modal, TouchableOpacity, Text, Pressable, Animated, Dimensions, RefreshControl, useWindowDimensions, ScrollView } from 'react-native';
+import { View, StyleSheet, Modal, TouchableOpacity, Text, Pressable, Animated, RefreshControl, useWindowDimensions, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTaskHistory } from '../hooks/useTaskHistory';
 import { WeeklySnapshot } from '../components/WeeklySnapshot';
 import { TaskTimeline } from '../components/TaskTimeline';
 import { CalendarView } from '../components/CalendarView';
 import { useTheme } from '../context/ThemeContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { PremiumBadge } from '../components/PremiumBadge';
 import { UpgradeModal } from '../components/UpgradeModal';
+import { PremiumBadge } from '../components/PremiumBadge';
 import { DailyTask } from '../types/Task';
 import { format } from 'date-fns';
 
-type ViewMode = 'grid' | 'timeline';
+type ViewMode = 'grid' | 'detail';
 
 export const HistoryScreen = () => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
-  const { tasks, allTasks, loading, refreshHistory } = useTaskHistory();
+  const { tasks, allTasks, loading, refreshHistory, error: historyError, clearError: clearHistoryError } = useTaskHistory();
   const { theme } = useTheme();
   const { isPremium, upgradeToPremium, isLoading: subscriptionLoading } = useSubscription();
   const [selectedTask, setSelectedTask] = useState<{task: DailyTask | null, day: string} | null>(null);
@@ -25,10 +26,12 @@ export const HistoryScreen = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // Animation values for smooth transitions
   const headerAnim = useRef(new Animated.Value(1)).current;
   const contentAnim = useRef(new Animated.Value(1)).current;
   const upgradeButtonAnim = useRef(new Animated.Value(1)).current;
+  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
+  const errorOpacity = useRef(new Animated.Value(0)).current;
+  const errorTranslateY = useRef(new Animated.Value(-8)).current;
 
   const handleDayPress = (task: DailyTask | null, day: string) => {
     setSelectedTask({ task, day });
@@ -38,68 +41,35 @@ export const HistoryScreen = () => {
     setShowUpgradeModal(true);
   };
 
+  const resetAnimations = () => {
+    Animated.parallel([
+      Animated.spring(contentAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }),
+      Animated.spring(headerAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }),
+    ]).start();
+  };
+
   const handleUpgrade = async () => {
     try {
       setIsTransitioning(true);
-      
-      // Animate the transition
+
       Animated.parallel([
-        Animated.timing(contentAnim, {
-          toValue: 0.8,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(headerAnim, {
-          toValue: 0.9,
-          duration: 200,
-          useNativeDriver: true,
-        }),
+        Animated.timing(contentAnim, { toValue: 0.8, duration: 200, useNativeDriver: true }),
+        Animated.timing(headerAnim, { toValue: 0.9, duration: 200, useNativeDriver: true }),
       ]).start();
 
       await upgradeToPremium();
-      
-      // Refresh history to show all data after upgrade
       await refreshHistory();
-      
-      // Animate back to normal
-      Animated.parallel([
-        Animated.spring(contentAnim, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.spring(headerAnim, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]).start();
-      
-    } catch (error) {
+      setShowUpgradeModal(false);
+    } catch (error: any) {
       console.error('Upgrade failed:', error);
-      // Animate back to normal on error
-      Animated.parallel([
-        Animated.spring(contentAnim, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.spring(headerAnim, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      if (!error?.userCancelled) {
+        Alert.alert('Purchase Failed', 'Unable to complete purchase. Please try again.');
+      }
     } finally {
       setIsTransitioning(false);
+      resetAnimations();
     }
   };
-
-  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
 
   const switchView = (mode: ViewMode) => {
     Animated.spring(tabIndicatorAnim, {
@@ -117,60 +87,77 @@ export const HistoryScreen = () => {
     setRefreshing(false);
   }, [refreshHistory]);
 
-  // Animate upgrade button when subscription status changes
   useEffect(() => {
     if (isPremium) {
       Animated.sequence([
-        Animated.timing(upgradeButtonAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(upgradeButtonAnim, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
+        Animated.timing(upgradeButtonAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.spring(upgradeButtonAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }),
       ]).start();
     }
   }, [isPremium]);
 
+  useEffect(() => {
+    if (historyError) {
+      Animated.parallel([
+        Animated.timing(errorOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(errorTranslateY, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ]).start();
+      const timer = setTimeout(clearHistoryError, 4000);
+      return () => clearTimeout(timer);
+    } else {
+      Animated.parallel([
+        Animated.timing(errorOpacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(errorTranslateY, { toValue: -8, duration: 150, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [historyError]);
+
+  // Tab container is width - 32 (marginHorizontal: 16 on each side)
+  const tabContainerWidth = width - 32;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[
-        styles.content,
-        isLandscape && styles.landscapeContent
-      ]}>
+      {historyError && (
+        <Animated.View
+          style={[
+            styles.errorBanner,
+            {
+              backgroundColor: theme.errorBackground,
+              opacity: errorOpacity,
+              transform: [{ translateY: errorTranslateY }],
+            },
+          ]}
+        >
+          <Text style={[styles.errorMessage, { color: theme.errorText }]} numberOfLines={2}>
+            {historyError}
+          </Text>
+          <TouchableOpacity
+            onPress={clearHistoryError}
+            style={styles.errorDismiss}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[styles.errorDismissText, { color: theme.errorText }]}>✕</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+      <View style={[styles.content, isLandscape && styles.landscapeContent]}>
         <View style={styles.mainContent}>
-          {/* Header with Premium Badge */}
-          <Animated.View 
+          <Animated.View
             style={[
               styles.header,
-              {
-                opacity: headerAnim,
-                transform: [{ scale: headerAnim }],
-              },
+              { opacity: headerAnim, transform: [{ scale: headerAnim }] },
             ]}
           >
             <View style={styles.headerContent}>
-              <Text style={[styles.headerTitle, { color: theme.text }]}>
-                History
-              </Text>
+              <Text style={[styles.headerTitle, { color: theme.text }]}>History</Text>
+              {isPremium && <PremiumBadge size="small" showText={false} />}
             </View>
             {!isPremium && (
-              <Animated.View
-                style={{
-                  opacity: upgradeButtonAnim,
-                  transform: [{ scale: upgradeButtonAnim }],
-                }}
-              >
+              <Animated.View style={{ opacity: upgradeButtonAnim, transform: [{ scale: upgradeButtonAnim }] }}>
                 <TouchableOpacity
                   style={[
-                    styles.upgradeButton, 
-                    { 
-                      backgroundColor: subscriptionLoading ? theme.secondaryText : theme.accent,
-                    }
+                    styles.upgradeButton,
+                    { backgroundColor: subscriptionLoading ? theme.secondaryText : theme.accent },
                   ]}
                   onPress={handleUpgradePress}
                   disabled={subscriptionLoading || isTransitioning}
@@ -184,49 +171,42 @@ export const HistoryScreen = () => {
           </Animated.View>
 
           <View style={[styles.tabContainer, { backgroundColor: theme.cardBackground }]}>
-            <Animated.View style={[
-              styles.tabIndicator,
-              {
-                backgroundColor: theme.accent + '20',
-                transform: [{
-                  translateX: tabIndicatorAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [4, width / 2 - 4]
-                  })
-                }]
-              }
-            ]} />
-            <TouchableOpacity 
-              style={styles.tab}
-              onPress={() => switchView('grid')}
-            >
+            <Animated.View
+              style={[
+                styles.tabIndicator,
+                {
+                  backgroundColor: theme.accent + '20',
+                  transform: [{
+                    translateX: tabIndicatorAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [4, tabContainerWidth / 2],
+                    }),
+                  }],
+                },
+              ]}
+            />
+            <TouchableOpacity style={styles.tab} onPress={() => switchView('grid')}>
               <Text style={[styles.tabText, { color: viewMode === 'grid' ? theme.accent : theme.secondaryText }]}>
                 Week View
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.tab}
-              onPress={() => switchView('timeline')}
-            >
-              <Text style={[styles.tabText, { color: viewMode === 'timeline' ? theme.accent : theme.secondaryText }]}>
+            <TouchableOpacity style={styles.tab} onPress={() => switchView('detail')}>
+              <Text style={[styles.tabText, { color: viewMode === 'detail' ? theme.accent : theme.secondaryText }]}>
                 {isPremium ? 'Calendar' : 'Timeline'}
               </Text>
             </TouchableOpacity>
           </View>
 
-          <Animated.View 
+          <Animated.View
             style={[
               styles.viewContainer,
               isLandscape && styles.landscapeViewContainer,
-              {
-                opacity: contentAnim,
-                transform: [{ scale: contentAnim }],
-              },
+              { opacity: contentAnim, transform: [{ scale: contentAnim }] },
             ]}
           >
             {viewMode === 'grid' ? (
-              <WeeklySnapshot 
-                tasks={tasks.slice(0, 7)} 
+              <WeeklySnapshot
+                tasks={tasks.slice(0, 7)}
                 onDayPress={handleDayPress}
                 refreshControl={
                   <RefreshControl
@@ -241,7 +221,7 @@ export const HistoryScreen = () => {
               isPremium ? (
                 <CalendarView tasks={allTasks} onDayPress={handleDayPress} />
               ) : (
-                <TaskTimeline 
+                <TaskTimeline
                   tasks={tasks}
                   refreshControl={
                     <RefreshControl
@@ -258,7 +238,6 @@ export const HistoryScreen = () => {
         </View>
       </View>
 
-      {/* Task Detail Modal */}
       <Modal
         visible={selectedTask !== null}
         transparent
@@ -266,13 +245,10 @@ export const HistoryScreen = () => {
         onRequestClose={() => setSelectedTask(null)}
       >
         <View style={styles.modalOverlay}>
-          <Pressable 
-            style={styles.modalDismissArea}
-            onPress={() => setSelectedTask(null)}
-          />
+          <Pressable style={styles.modalDismissArea} onPress={() => setSelectedTask(null)} />
           <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
             <View style={styles.modalHandle} />
-            
+
             {selectedTask?.task ? (
               <>
                 <View style={styles.modalHeader}>
@@ -286,20 +262,13 @@ export const HistoryScreen = () => {
                   </View>
                   {selectedTask.task.completed && (
                     <View style={[styles.statusBadge, { backgroundColor: theme.accent + '20' }]}>
-                      <Text style={[styles.statusText, { color: theme.accent }]}>
-                        ✓ Completed
-                      </Text>
+                      <Text style={[styles.statusText, { color: theme.accent }]}>✓ Completed</Text>
                     </View>
                   )}
                 </View>
-
                 <View style={styles.taskContainer}>
-                  <Text style={[styles.taskLabel, { color: theme.secondaryText }]}>
-                    Task
-                  </Text>
-                  <Text style={[styles.taskText, { color: theme.text }]}>
-                    {selectedTask.task.text}
-                  </Text>
+                  <Text style={[styles.taskLabel, { color: theme.secondaryText }]}>Task</Text>
+                  <Text style={[styles.taskText, { color: theme.text }]}>{selectedTask.task.text}</Text>
                 </View>
               </>
             ) : (
@@ -313,7 +282,6 @@ export const HistoryScreen = () => {
         </View>
       </Modal>
 
-      {/* Upgrade Modal */}
       <UpgradeModal
         visible={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
@@ -326,9 +294,6 @@ export const HistoryScreen = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-  },
-  scrollView: {
     flex: 1,
   },
   content: {
@@ -469,4 +434,24 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
   },
-}); 
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  errorMessage: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  errorDismiss: {
+    paddingLeft: 12,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  errorDismissText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});

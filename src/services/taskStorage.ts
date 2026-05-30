@@ -5,6 +5,8 @@ export const STORAGE_KEYS = {
   CURRENT_TASK: 'currentTask',
   TASK_HISTORY: 'taskHistory',
   STREAK: 'streak',
+  LAST_WEEK_START: 'lastWeekStart',
+  SUBSCRIPTION_STATUS: 'subscriptionStatus',
 } as const;
 
 /**
@@ -60,14 +62,25 @@ export const taskStorage = {
   },
 
   /**
-   * Gets the current streak count
+   * Saves the ISO date string for the start of the last tracked week
    */
-  getStreak: async (): Promise<number> => {
+  saveLastWeekStart: async (isoDate: string): Promise<void> => {
     try {
-      const streak = await AsyncStorage.getItem(STORAGE_KEYS.STREAK);
-      return streak ? parseInt(streak, 10) : 0;
+      await AsyncStorage.setItem(STORAGE_KEYS.LAST_WEEK_START, isoDate);
     } catch (error) {
-      console.error('Error getting streak:', error);
+      console.error('Error saving last week start:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Gets the ISO date string for the start of the last tracked week
+   */
+  getLastWeekStart: async (): Promise<string | null> => {
+    try {
+      return await AsyncStorage.getItem(STORAGE_KEYS.LAST_WEEK_START);
+    } catch (error) {
+      console.error('Error getting last week start:', error);
       throw error;
     }
   },
@@ -104,6 +117,29 @@ export const taskStorage = {
   },
 
   /**
+   * Saves the subscription status string for optimistic rendering on next launch
+   */
+  saveSubscriptionStatus: async (status: string): Promise<void> => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SUBSCRIPTION_STATUS, status);
+    } catch (error) {
+      console.error('Error saving subscription status:', error);
+    }
+  },
+
+  /**
+   * Gets the cached subscription status string, or null if not yet persisted
+   */
+  getSubscriptionStatus: async (): Promise<string | null> => {
+    try {
+      return await AsyncStorage.getItem(STORAGE_KEYS.SUBSCRIPTION_STATUS);
+    } catch (error) {
+      console.error('Error getting subscription status:', error);
+      return null;
+    }
+  },
+
+  /**
    * Clears all stored data (useful for testing/logout)
    */
   clearAll: async (): Promise<void> => {
@@ -112,6 +148,8 @@ export const taskStorage = {
         STORAGE_KEYS.CURRENT_TASK,
         STORAGE_KEYS.TASK_HISTORY,
         STORAGE_KEYS.STREAK,
+        STORAGE_KEYS.LAST_WEEK_START,
+        STORAGE_KEYS.SUBSCRIPTION_STATUS,
       ]);
     } catch (error) {
       console.error('Error clearing storage:', error);

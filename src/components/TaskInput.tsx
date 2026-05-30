@@ -25,11 +25,20 @@ export const TaskInput = ({ onSubmit }: TaskInputProps) => {
         placeholderTextColor={theme.secondaryText}
         value={text}
         onChangeText={setText}
+        returnKeyType="done"
+        onSubmitEditing={() => {
+          if (text.trim()) {
+            onSubmit(text.trim());
+            setText('');
+          }
+        }}
+        autoCorrect={false}
+        autoCapitalize="sentences"
       />
       <TouchableOpacity
         style={[
           styles.button,
-          !text.trim() && styles.buttonDisabled
+          { backgroundColor: text.trim() ? theme.accent : theme.accent + '60' },
         ]}
         onPress={() => {
           if (text.trim()) {
@@ -38,8 +47,9 @@ export const TaskInput = ({ onSubmit }: TaskInputProps) => {
           }
         }}
         disabled={!text.trim()}
+        accessibilityState={{ disabled: !text.trim() }}
       >
-        <Text style={styles.buttonText}>Set Goal</Text>
+        <Text style={[styles.buttonText, { color: theme.devButtonText }]}>Set Goal</Text>
       </TouchableOpacity>
     </View>
   );
@@ -52,23 +62,22 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#E5E5EA', // fallback; overridden inline with theme.border
     padding: 15,
     borderRadius: 8,
     fontSize: 16,
     marginBottom: 10,
   },
   button: {
-    backgroundColor: '#007AFF',
+    // backgroundColor set inline with theme.accent
     padding: 15,
+    minHeight: 44,
     borderRadius: 8,
     alignItems: 'center',
-  },
-  buttonDisabled: {
-    backgroundColor: '#ccc',
+    justifyContent: 'center',
   },
   buttonText: {
-    color: '#fff',
+    // color set inline with theme.devButtonText
     fontSize: 16,
     fontWeight: '600',
   },

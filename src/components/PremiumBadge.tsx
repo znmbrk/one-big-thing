@@ -1,7 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { PremiumBadgeProps } from '../types/subscription';
+
+interface PremiumBadgeProps {
+  size?: 'small' | 'medium' | 'large';
+  showText?: boolean;
+}
 
 export const PremiumBadge: React.FC<PremiumBadgeProps> = ({ 
   size = 'medium', 
@@ -69,8 +73,9 @@ export const PremiumBadge: React.FC<PremiumBadgeProps> = ({
         },
       ]}
     >
-
-      
+      <Text style={[styles.sparkleIcon, sizeStyles.icon, { color: theme.accent }]}>
+        ★
+      </Text>
       {showText && (
         <Text style={[
           styles.text,
@@ -95,11 +100,6 @@ const styles = StyleSheet.create({
   text: {
     fontWeight: '600',
     marginLeft: 4,
-  },
-  sparkle: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
   },
   sparkleIcon: {
     fontSize: 8,
