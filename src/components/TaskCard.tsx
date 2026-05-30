@@ -1,8 +1,14 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, useWindowDimensions } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  useWindowDimensions,
+} from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { DailyTask } from '../types/Task';
-import { useQuote } from '../hooks/useQuote';
 import { useTheme } from '../context/ThemeContext';
 
 interface TaskCardProps {
@@ -12,12 +18,10 @@ interface TaskCardProps {
 }
 
 export const TaskCard = ({ task, onToggleComplete, checkboxScale }: TaskCardProps) => {
-  const quote = useQuote();
   const { theme } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const hasFiredConfetti = useRef(false);
 
-  // Reset the confetti flag when the task changes or is uncompleted
   useEffect(() => {
     if (!task.completed) {
       hasFiredConfetti.current = false;
@@ -30,115 +34,95 @@ export const TaskCard = ({ task, onToggleComplete, checkboxScale }: TaskCardProp
   }
 
   return (
-    <View style={[styles.container, {
-      backgroundColor: theme.cardBackground,
-      shadowColor: theme.shadowColor,
-    }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: theme.cardBackground, shadowColor: theme.shadowColor },
+        task.completed && { backgroundColor: theme.accent + '08' },
+      ]}
+    >
       <View style={styles.content}>
-        <View style={styles.titleRow}>
-          <Text style={styles.emoji}>✨</Text>
-          <Text style={[styles.title, { color: theme.secondaryText }]}>Today's Focus</Text>
-        </View>
-        <Text style={[styles.taskText, { color: theme.text }]}>{task.text}</Text>
+        <Text
+          style={[
+            styles.taskText,
+            { color: theme.text },
+            task.completed && styles.taskTextCompleted,
+          ]}
+        >
+          {task.text}
+        </Text>
 
         <TouchableOpacity
           onPress={onToggleComplete}
-          style={styles.completionButton}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={task.completed ? 'Mark as incomplete' : 'Mark as complete'}
+          accessibilityState={{ checked: task.completed }}
         >
           <Animated.View
             style={[
               styles.checkCircle,
-              {
-                transform: [{ scale: checkboxScale }],
-                borderColor: theme.accent,
-              },
-              task.completed && { backgroundColor: theme.accent }
+              { borderColor: theme.accent, transform: [{ scale: checkboxScale }] },
+              task.completed && { backgroundColor: theme.accent, borderColor: theme.accent },
             ]}
           >
             {task.completed && <Text style={styles.checkmark}>✓</Text>}
           </Animated.View>
-          <Text style={[styles.buttonText, { color: theme.accent }]}>
-            {task.completed ? 'Completed!' : 'Mark Complete'}
-          </Text>
         </TouchableOpacity>
-
-        {shouldShowConfetti && (
-          <ConfettiCannon
-            count={50}
-            origin={{ x: screenWidth / 2, y: 0 }}
-            autoStart={true}
-            fadeOut={true}
-          />
-        )}
-
-        <Text style={[styles.quote, { color: theme.secondaryText }]}>{quote}</Text>
       </View>
+
+      {shouldShowConfetti && (
+        <ConfettiCannon
+          count={50}
+          origin={{ x: screenWidth / 2, y: 0 }}
+          autoStart
+          fadeOut
+        />
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    margin: 16,
+    marginHorizontal: 16,
     borderRadius: 20,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 28,
+    paddingTop: 24,
+    paddingBottom: 28,
     alignItems: 'center',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  emoji: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  title: {
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    gap: 16,
   },
   taskText: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 30,
+    fontSize: 26,
+    fontWeight: '700',
     textAlign: 'center',
+    lineHeight: 34,
+    letterSpacing: -0.3,
   },
-  completionButton: {
-    alignItems: 'center',
-    marginVertical: 20,
+  taskTextCompleted: {
+    opacity: 0.35,
   },
   checkCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
     backgroundColor: 'transparent',
   },
   checkmark: {
     color: '#fff',
-    fontSize: 40,
+    fontSize: 26,
     fontWeight: '600',
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  quote: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    marginTop: 20,
-    textAlign: 'center',
+    lineHeight: 30,
   },
 });

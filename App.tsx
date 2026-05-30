@@ -5,6 +5,16 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import { SubscriptionProvider } from './src/context/SubscriptionContext';
 import React from 'react';
 import { useColorScheme } from 'react-native';
+import * as Notifications from 'expo-notifications';
+
+// Must be called at module level — controls how notifications appear when app is foregrounded
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 export default function App() {
   const colorScheme = useColorScheme();
